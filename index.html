@@ -53,6 +53,10 @@ h1,h2,h3{margin:.2em 0 .4em}
 .slot .nm{font-weight:800}
 .slot .who{margin:6px 0;font-size:.95em}
 .slot .acts{display:flex;gap:6px;flex-wrap:wrap}
+.stsel{margin-bottom:10px}
+.stsel .tgl{display:inline-flex;align-items:center;gap:4px;padding:5px 9px;margin:2px 2px;border:2px solid var(--line);border-radius:10px;font-weight:700;font-size:.9em;cursor:pointer;background:#fff;color:var(--mut)}
+.stsel .tgl.on{border-color:var(--kan);background:#f1faf6;color:var(--ink)}
+.stsel .tgl input{margin:0}
 .slot .sev{display:flex;align-items:center;gap:6px;margin:4px 0 2px}
 .slot .sev select{padding:.2em .4em;font-weight:700}
 .slot .acts button{padding:.3em .6em;font-size:.8em}
@@ -244,7 +248,7 @@ details summary{list-style:revert}
 'use strict';
 /* =====================================================================
    Kanban Hat Simülasyonu — İtme (push) vs. Kanban (pull)
-   Tek dosya. Eğitmen ekranı = simülasyonun sahibi (otorite).
+   Tek dosya. Patron ekranı = simülasyonun sahibi (otorite).
    Telefonlar = istasyon kumandası. Haberleşme: herkese açık MQTT sunucusu.
    ===================================================================== */
 const TOPIC_ROOT = 'kanbanlab-ytu-v1';
@@ -261,22 +265,20 @@ const LIB = {
   delme:  {name:'Delme',            icon:'🔩', type:'hold',    op:5.0, task:'Deliklere sırayla basılı tut, halka dolunca bırak'},
   kaynak: {name:'Kaynak',           icon:'🔥', type:'trace',   op:7.0, task:'Dikiş hattını parmağınla baştan sona takip et'},
   montaj: {name:'Montaj',           icon:'🔧', type:'drag',    op:4.0, task:'Vidaları deliklere sürükle, sonra her birine dokunup sık'},
+  boya:   {name:'Boya',             icon:'🎨', type:'paint',   op:4.5, task:'Parmağını parçanın üzerinde gezdirerek boya (en az %90)'},
   kalite: {name:'Kalite Kontrol',   icon:'🔍', type:'inspect', op:3.0, task:'Kusurlu parçayı bul ya da "Hepsi sağlam"a bas'},
   paket:  {name:'Paketleme & Sevk', icon:'📦', type:'pack',    op:4.0, task:'Ürünü koliye sürükle, bandı çek, etikete dokun'}
 };
 // Her istasyonun iş miktarı ×m şiddetle çarpılır (ör. Kaynak ×2 → 4 dikiş). Planlanan darboğaz = planlanan süresi en uzun istasyon.
-function workLabel(key, m){ return {kesim:m+' kesim', delme:(5*m)+' delik', kaynak:(2*m)+' dikiş', montaj:(3*m)+' vida', kalite:m+' grup', paket:m+' ürün'}[key]; }
+function workLabel(key, m){ return {kesim:m+' kesim', delme:(5*m)+' delik', kaynak:(2*m)+' dikiş', boya:m+' kat boya', montaj:(3*m)+' vida', kalite:m+' grup', paket:m+' ürün'}[key]; }
 function plannedBotts(keys, mult){
   const v = keys.map((k,j)=>LIB[k].op*(mult[j]||1)), mx = Math.max(...v);
   return {primary:v.indexOf(mx), list:v.map((x,j)=>x>=mx*0.9?j:-1).filter(j=>j>=0), v};
 }
 const multStr = (names, mult) => names.map((n,j)=>(mult[j]||1)>1 ? n+' ×'+mult[j] : null).filter(Boolean).join(', ') || 'hepsi ×1';
 const SPEEDS = [1,2,4,8,16];
-const LINES = {
-  4:['kesim','delme','kaynak','paket'],
-  5:['kesim','delme','kaynak','montaj','paket'],
-  6:['kesim','delme','kaynak','montaj','kalite','paket']
-};
+// Hattın sabit sırası. Patron hangi istasyonların açık olacağını seçer.
+const CATALOG = ['kesim','delme','kaynak','boya','montaj','kalite','paket'];
 const ROUND_COLORS = ['#d64545','#0f8a6c','#3a66c4','#c98a12','#8a4fc4','#555'];
 const OFFLINE_MS = 12000;
 
@@ -420,12 +422,12 @@ function renderLanding(){
     <p class="mut">İtme (push) ve Kanban (pull) üretim sistemlerinin karşılaştırıldığı, telefonla oynanan sınıf içi uygulama.</p>
     <div class="grid">
       <div class="card">
-        <h2>👩‍🏫 Eğitmen ekranı</h2>
+        <h2>👔 Patron ekranı</h2>
         <p class="mut small">Projeksiyona yansıtılacak ekran. Oyunu yönetir, QR kodunu ve sonuçları gösterir.</p>
         <label class="small mut">Bağlantı sunucusu<br>
           <select id="lb"><option value="A">Otomatik (tüm sunucular) — önerilen</option>${BROKERS.map((b,i)=>`<option value="${i}">Yalnızca ${i+1}. ${b.name}</option>`).join('')}<option value="L">Tek bilgisayarda test (sekmeler)</option></select>
         </label>
-        <p><button id="goHost">Eğitmen ekranını aç</button></p>
+        <p><button id="goHost">Patron ekranını aç</button></p>
       </div>
       <div class="card">
         <h2>📱 Katılımcı</h2>
@@ -435,7 +437,7 @@ function renderLanding(){
       </div>
     </div>
   </div>`;
-  $('#goHost').onclick = ()=>{ location.search = '?rol=egitmen' + ($('#lb').value!=='A' ? '&b='+$('#lb').value : ''); };
+  $('#goHost').onclick = ()=>{ location.search = '?rol=patron' + ($('#lb').value!=='A' ? '&b='+$('#lb').value : ''); };
   $('#goPlay').onclick = ()=>{ const c = $('#lc').value.trim().toUpperCase(); if (c) location.search = '?oda=' + encodeURIComponent(c) + ($('#lb').value!=='A' ? '&b='+$('#lb').value : ''); };
 }
 
@@ -450,8 +452,8 @@ function startHost(b){
   if (!code) code = genCode();
   try { sessionStorage.setItem('kl_host_code', code); } catch(e){}
   H = {
-    b, code, players:{}, assign:[null,null,null,null,null,null], forceBot:[false,false,false,false,false,false],
-    settings:{n:5, mult:[1,1,2,1,1,1], round:240, K:1, mode:'push'},
+    b, code, players:{}, assign:Array(7).fill(null), forceBot:Array(7).fill(false),
+    settings:{active:['kesim','delme','kaynak','montaj','kalite','paket'], mult:{kesim:1, delme:1, kaynak:2, boya:1, montaj:1, kalite:1, paket:1}, round:240, K:1, mode:'push'},
     phase:'lobby', sim:null, rounds:[], cdEnd:0, conn:{s:'wait',m:'…'}, lastPub:0, dirty:true, view:'',
     speed:1, sBase:Date.now(), rBase:Date.now(), watch:-1, wv:null, botViz:{}
   };
@@ -473,13 +475,26 @@ function setSpeed(x){
 }
 function isOnline(pid){ const p = H.players[pid]; return p && (now() - p.last) < OFFLINE_MS; }
 function isBot(j){ const pid = H.assign[j]; return H.speed>1 || H.forceBot[j] || !pid || !isOnline(pid); }
+function activeKeys(){ return CATALOG.filter(k=>H.settings.active.includes(k)); }
+function nAct(){ return H.settings.active.length; }
+function multArr(keys){ return keys.map(k=>H.settings.mult[k]||1); }
+// İstasyon açılıp kapanınca öğrenciler ve "bot yap" ayarı istasyon adına göre korunur
+function setActive(newKeys){
+  const old = activeKeys(), byKey = {}, fbKey = {};
+  old.forEach((k,j)=>{ byKey[k] = H.assign[j]; fbKey[k] = H.forceBot[j]; });
+  H.settings.active = CATALOG.filter(k=>newKeys.includes(k));
+  H.assign = Array(7).fill(null); H.forceBot = Array(7).fill(false);
+  activeKeys().forEach((k,j)=>{ if (byKey[k]) H.assign[j] = byKey[k]; H.forceBot[j] = !!fbKey[k]; });
+  Object.values(H.players).forEach(p=>{ const j = H.assign.indexOf(p.pid); p.st = j>=0 ? j : null; });
+  normalizeAssign(); H.dirty = true; H.view = '';
+}
 function normalizeAssign(){
-  const n = H.settings.n;
-  for (let j=n; j<6; j++){ const pid = H.assign[j]; if (pid){ H.assign[j]=null; if (H.players[pid]) H.players[pid].st=null; } }
+  const n = nAct();
+  for (let j=n; j<7; j++){ const pid = H.assign[j]; if (pid){ H.assign[j]=null; if (H.players[pid]) H.players[pid].st=null; } }
   Object.values(H.players).forEach(p=>{ if (p.st==null) autoAssign(p); });
 }
 function autoAssign(p){
-  const n = H.settings.n;
+  const n = nAct();
   for (let j=0;j<n;j++){ if (!H.assign[j]){ H.assign[j]=p.pid; p.st=j; return; } }
   p.st = null; // gözlemci
 }
@@ -508,7 +523,7 @@ function hostOnMsg(sub, m){
       if (H.phase==='run' || H.phase==='cd') break;
       const j = m.st;
       if (j === -1){ if (p.st!=null){ H.assign[p.st]=null; p.st=null; } H.dirty=true; break; }
-      if (!(j>=0 && j<H.settings.n)) break;
+      if (!(j>=0 && j<nAct())) break;
       const cur = H.assign[j];
       if (cur && cur!==p.pid && isOnline(cur)) break;
       if (cur && cur!==p.pid && H.players[cur]) H.players[cur].st = null;
@@ -533,12 +548,12 @@ function hostOnMsg(sub, m){
 /* ---------------- Simülasyon çekirdeği ---------------- */
 // Not: simülasyon kendi saatiyle (simNow) çalışır; hız düğmeleri bu saati hızlandırır.
 function newSim(trial){
-  const s = H.settings, keys = LINES[s.n];
+  const s = H.settings, keys = activeKeys();
   return {
-    trial:!!trial, accel:false, mode: trial ? 'push' : s.mode, K:s.K, n:s.n, mult:s.mult.slice(0,s.n),
-    bott:plannedBotts(keys, s.mult).primary, botts:plannedBotts(keys, s.mult).list,
+    trial:!!trial, accel:false, mode: trial ? 'push' : s.mode, K:s.K, n:keys.length, mult:multArr(keys),
+    bott:plannedBotts(keys, multArr(keys)).primary, botts:plannedBotts(keys, multArr(keys)).list,
     dur:(trial ? 60 : s.round)*1000, keys,
-    st: keys.map((k,j)=>{ const m = s.mult[j]||1, pl = planFor(j, k, m);
+    st: keys.map((k,j)=>{ const m = s.mult[k]||1, pl = planFor(j, k, m);
       return {key:k, mult:m, op:LIB[k].op*m, mt:0, plan:pl.v, planSrc:pl.src, job:null, busy:0, count:0, botAt:0,
         starvedMs:0, blockedMs:0, opSum:0, opN:0, ctSum:0}; }),
     buf: keys.map(()=>[]), maxBuf: keys.map(()=>0), nextId:1, released:0, shipped:[], wipS:[], t0:0, end:0, lastSample:0, lastT:0, cur:0
@@ -547,7 +562,8 @@ function newSim(trial){
 // Planlanan süre: aynı ayarla oynanmış deneme turu varsa onun ölçümü, yoksa tahmin
 function planFor(j, key, m){
   const t = H.lastTrial, s = H.settings;
-  if (t && t.cfg && t.cfg.n===s.n && t.cfg.mult===s.mult.slice(0,s.n).join(',') && t.meas[j] > 0) return {v:t.meas[j], src:'deneme'};
+  const ks = activeKeys();
+  if (t && t.cfg && t.cfg.line===ks.join(',')+'|'+multArr(ks).join(',') && t.meas[j] > 0) return {v:t.meas[j], src:'deneme'};
   return {v:LIB[key].op*m, src:'tahmini'};
 }
 function canStart(S,j){
@@ -638,7 +654,7 @@ function finishRound(){
   S.st.forEach(st=>{ if (st.job){ st.busy += Math.max(0, S.end - st.job.t); } });
   const meas = measOf(S), counts = S.st.map(st=>st.count);
   if (S.trial){
-    H.lastTrial = {cfg:{n:S.n, mult:S.mult.join(',')}, names:S.keys.map(k=>LIB[k].name), meas, counts, op:S.st.map(st=>st.opN ? st.opSum/st.opN/1000 : NaN), realB:realBott(meas, counts), accel:S.accel};
+    H.lastTrial = {cfg:{line:S.keys.join(',')+'|'+S.mult.join(',')}, names:S.keys.map(k=>LIB[k].name), meas, counts, op:S.st.map(st=>st.opN ? st.opSum/st.opN/1000 : NaN), realB:realBott(meas, counts), accel:S.accel};
     H.phase = H.rounds.length ? 'res' : 'lobby'; H.view = ''; H.dirty = true;
     if (H.speed !== 1) setSpeed(1);
     return;
@@ -677,16 +693,16 @@ function hostStartRound(trial){
 }
 function hostState(){
   const t = simNow(), rt = now(), S = H.sim, live = (H.phase==='run' || H.phase==='cd') && S;
-  const n = live ? S.n : H.settings.n, keys = LINES[n];
-  const o = {v:1, now:t, sp:H.speed, ph:H.phase, n, keys, mode: live ? S.mode : H.settings.mode, K: live ? S.K : H.settings.K, bott: live ? S.bott : plannedBotts(keys, H.settings.mult).primary,
-    botts: live ? S.botts : plannedBotts(keys, H.settings.mult).list,
+  const keys = live ? S.keys : activeKeys(), n = keys.length;
+  const o = {v:1, now:t, sp:H.speed, ph:H.phase, n, keys, mode: live ? S.mode : H.settings.mode, K: live ? S.K : H.settings.K, bott: live ? S.bott : plannedBotts(keys, multArr(keys)).primary,
+    botts: live ? S.botts : plannedBotts(keys, multArr(keys)).list,
     tr: live && S.trial ? 1 : 0, w: H.phase==='run' ? H.watch : -1,
     rem: H.phase==='run' ? S.end - t : H.phase==='cd' ? H.cdEnd - rt : 0, rd: H.rounds.length + (live ? 1 : 0)};
   o.as = keys.map((k,j)=>{
     const pid = H.assign[j], p = pid && H.players[pid], st = live ? S.st[j] : null;
     return {p:pid||null, pn:p ? p.name : '', bot:isBot(j), fb:H.forceBot[j],
       j: st && st.job ? {ph:st.job.ph, u:st.job.u.id, e:st.job.e, d:st.job.d} : null,
-      c: st ? st.count : 0, m: live ? S.st[j].mult : (H.settings.mult[j]||1),
+      c: st ? st.count : 0, m: live ? S.st[j].mult : (H.settings.mult[k]||1),
       oa: st && st.opN ? Math.round(st.opSum/st.opN/100)/10 : null};
   });
   o.b = live ? S.buf.map(x=>x.length) : keys.map(()=>0);
@@ -698,7 +714,7 @@ function hostState(){
   return o;
 }
 
-/* ---------------- Eğitmen ekranı çizimi ---------------- */
+/* ---------------- Patron ekranı çizimi ---------------- */
 function joinURL(){
   const base = location.origin + location.pathname;
   return base + '?oda=' + H.code + (H.b !== 'A' ? '&b=' + H.b : '');
@@ -726,10 +742,11 @@ function topBar(extra){
   </div>`;
 }
 function settingsHTML(){
-  const s = H.settings, keys = LINES[s.n];
-  return `<div class="settings">
-    <label>İstasyon sayısı (= öğrenci sayısı)
-      <select data-set="n">${[4,5,6].map(v=>`<option ${s.n===v?'selected':''}>${v}</option>`).join('')}</select></label>
+  const s = H.settings;
+  return `<div class="stsel"><div class="small mut" style="font-weight:700;margin-bottom:4px">Hattaki istasyonlar — açık olanlar: <b style="color:var(--ink)">${nAct()} istasyon</b> (= öğrenci sayısı)</div>
+    ${CATALOG.map(k=>`<label class="tgl ${s.active.includes(k)?'on':''}"><input type="checkbox" data-st="${k}" ${s.active.includes(k)?'checked':''}> ${LIB[k].icon} ${esc(LIB[k].name)}</label>`).join('<span class="mut">→</span>')}
+    <div id="stmsg" class="small" style="color:#9b1c1c;margin-top:4px"></div></div>
+  <div class="settings">
     <label id="kRow" style="display:${s.mode==='kanban'?'flex':'none'}">Kanban kart sayısı (K)
       <select data-set="K">${[1,2,3,4].map(v=>`<option ${s.K===v?'selected':''}>${v}</option>`).join('')}</select></label>
   </div>
@@ -753,6 +770,13 @@ function bindSettings(root){
       const sb = $('#startBtn'); if (sb) sb.textContent = startLabel();
     };
   });
+  root.querySelectorAll('input[data-st]').forEach(cb=>{
+    cb.onchange = ()=>{
+      const on = [...root.querySelectorAll('input[data-st]')].filter(x=>x.checked).map(x=>x.dataset.st);
+      if (on.length < 2){ cb.checked = true; const m = $('#stmsg'); if (m) m.textContent = 'Hatta en az 2 istasyon olmalı.'; return; }
+      setActive(on);
+    };
+  });
   const adv = root.querySelector('#adv'); if (adv) adv.addEventListener('toggle', ()=>{ H.advOpen = adv.open; });
 }
 function startLabel(){ return '▶ Tur ' + (H.rounds.length+1) + ' başlat — ' + modeLabel(H.settings.mode, H.settings.K); }
@@ -764,7 +788,7 @@ function trialInfo(){
 function slotsBlock(){
   return `<div class="card" style="margin-top:12px">
     <div class="row" style="justify-content:space-between"><h3 style="margin:0">İstasyonlar ve operatörler</h3>
-      <label class="small mut"><input type="checkbox" id="allBot" ${H.forceBot.slice(0,H.settings.n).every(x=>x)?'checked':''}> Tüm istasyonları bot oynasın (yedek / demo)</label></div>
+      <label class="small mut"><input type="checkbox" id="allBot" ${H.forceBot.slice(0,nAct()).every(x=>x)?'checked':''}> Tüm istasyonları bot oynasın (yedek / demo)</label></div>
     <p class="small mut" style="margin:.3em 0 .6em">Boş istasyonları otomatik olarak bot oynar. Fazla katılımcılar gözlemci olur. <b>Şiddet</b> istasyonun ürün başına iş miktarını çarpar; planlanan süresi en uzun istasyon otomatik olarak <span class="bn">DARBOĞAZ</span> olur.</p>
     <div class="slots" id="slots"></div>
     <div id="bwarn" class="small" style="margin-top:8px;color:#7a5a00"></div>
@@ -782,13 +806,13 @@ function bindSlots(){
   });
   sl.addEventListener('change', e=>{
     const sel = e.target.closest('select[data-mult]'); if (!sel) return;
-    H.settings.mult[+sel.dataset.mult] = +sel.value; H.dirty = true; H.view = '';
+    H.settings.mult[sel.dataset.mult] = +sel.value; H.dirty = true; H.view = '';
   });
-  $('#allBot').onchange = e=>{ for (let j=0;j<6;j++) H.forceBot[j] = e.target.checked; H.dirty=true; hostUpdateSlots(); };
+  $('#allBot').onchange = e=>{ for (let j=0;j<7;j++) H.forceBot[j] = e.target.checked; H.dirty=true; hostUpdateSlots(); };
 }
 function hostUpdateSlots(){
   const sl = $('#slots'); if (!sl) return;
-  const keys = LINES[H.settings.n], pb = plannedBotts(keys, H.settings.mult);
+  const keys = activeKeys(), pb = plannedBotts(keys, multArr(keys));
   setHTML(sl, keys.map((k,j)=>{
     const pid = H.assign[j], p = pid && H.players[pid], on = pid && isOnline(pid), fb = H.forceBot[j];
     const who = fb ? '🤖 Bot (zorunlu)' + (p ? ` <span class="mut">— ${esc(p.name)} bekliyor</span>` : '')
@@ -796,16 +820,18 @@ function hostUpdateSlots(){
     return `<div class="slot ${p&&!fb?'has':''} ${fb||!p?'bot':''}">
       <div class="nm">${j+1}. ${LIB[k].icon} ${esc(LIB[k].name)} ${pb.list.includes(j)?'<span class="bn">DARBOĞAZ</span>':''}</div>
       <div class="who">${who}</div>
-      <div class="sev small"><b>Şiddet</b> <select data-mult="${j}">${[1,2,3,4,5].map(v=>`<option value="${v}" ${(H.settings.mult[j]||1)===v?'selected':''}>×${v}</option>`).join('')}</select></div>
-      <div class="small mut">İş: <b>${workLabel(k, H.settings.mult[j]||1)}</b> · ≈${fmt1(pb.v[j])} sn/ürün</div>
+      <div class="sev small"><b>Şiddet</b> <select data-mult="${k}">${[1,2,3,4,5].map(v=>`<option value="${v}" ${(H.settings.mult[k]||1)===v?'selected':''}>×${v}</option>`).join('')}</select></div>
+      <div class="small mut">İş: <b>${workLabel(k, H.settings.mult[k]||1)}</b> · ≈${fmt1(pb.v[j])} sn/ürün</div>
       <div class="acts" style="margin-top:6px"><button class="ghost" data-a="bot" data-j="${j}">${fb?'Botu kaldır':'Bot yap'}</button>${p?`<button class="ghost" data-a="kick" data-j="${j}">Çıkar</button>`:''}</div>
     </div>`;
   }).join(''));
-  setHTML($('#bwarn'), pb.list.length>1 ? `⚠️ Planlanan süreleri birbirine çok yakın istasyonlar var (${pb.list.map(j=>esc(LIB[keys[j]].name)).join(', ')}): darboğazı öğrencilerin hızı belirleyecek.` : '')
-  ;(()=>{ const w = $('#bwarn'); if (w && pb.list.includes(0)) w.innerHTML += (w.innerHTML?'<br>':'') + '⚠️ Kesim (hattın başı) en yavaş istasyon: İtme turunda stok birikmez, İtme–Kanban farkı görünmez.'; })();
+  const warns = [];
+  if (pb.list.length > 1) warns.push(`⚠️ Planlanan süreleri birbirine çok yakın istasyonlar var (${pb.list.map(j=>esc(LIB[keys[j]].name)).join(', ')}): darboğazı öğrencilerin hızı belirleyecek.`);
+  if (pb.list.includes(0)) warns.push(`⚠️ ${esc(LIB[keys[0]].name)} (hattın başı) en yavaş istasyon: İtme turunda stok birikmez, İtme–Kanban farkı görünmez. Başka bir istasyonun şiddetini artırın.`);
+  setHTML($('#bwarn'), warns.join('<br>'));
   const obs = Object.values(H.players).filter(p=>p.st==null && isOnline(p.pid));
   setHTML($('#obs'), obs.length ? '👀 Gözlemciler: ' + obs.map(p=>esc(p.name)).join(', ') : '');
-  const ab = $('#allBot'); if (ab) ab.checked = H.forceBot.slice(0,H.settings.n).every(x=>x);
+  const ab = $('#allBot'); if (ab) ab.checked = H.forceBot.slice(0,nAct()).every(x=>x);
 }
 function hostBuildLobby(){
   const url = joinURL();
@@ -824,12 +850,12 @@ function hostBuildLobby(){
           <h3>Oyunun kuralları (öğrencilere okuyun)</h3>
           <ol class="rules">
             <li>Her telefon hattaki bir istasyondur. <b>İŞLE</b> tuşuna basınca önceki istasyondan bir parça alırsınız.</li>
-            <li>Ekranda istasyonunuza özgü işlemi yapın: <b>Kesim</b> çizgi boyunca kaydır · <b>Delme</b> basılı tut · <b>Kaynak</b> dikişi takip et · <b>Montaj</b> vidaları sürükle · <b>Kalite</b> kusurluyu bul · <b>Paketleme</b> koliye koy ve bantla.</li>
-            <li>İş bitince parça otomatik olarak sonraki istasyona gider. Makine yok: istasyonun hızını <b>sizin elleriniz</b> belirler. Planlanan darboğaz: <b>${(()=>{ const ks = LINES[H.settings.n], pb = plannedBotts(ks, H.settings.mult); return pb.list.map(j=>esc(LIB[ks[j]].name) + ' (' + workLabel(ks[j], H.settings.mult[j]||1) + ')').join(', '); })()}</b>.</li>
+            <li>Ekranda istasyonunuza özgü işlemi yapın: <b>Kesim</b> çizgi boyunca kaydır · <b>Delme</b> basılı tut · <b>Kaynak</b> dikişi takip et · <b>Boya</b> parmağınla boya · <b>Montaj</b> vidaları sürükle · <b>Kalite</b> kusurluyu bul · <b>Paketleme</b> koliye koy ve bantla.</li>
+            <li>İş bitince parça otomatik olarak sonraki istasyona gider. Makine yok: istasyonun hızını <b>sizin elleriniz</b> belirler. Planlanan darboğaz: <b>${(()=>{ const ks = activeKeys(), pb = plannedBotts(ks, multArr(ks)); return pb.list.map(j=>esc(LIB[ks[j]].name) + ' (' + workLabel(ks[j], H.settings.mult[ks[j]]||1) + ')').join(', '); })()}</b>.</li>
             <li><span class="badge push">İTME</span> turunda kural: <b>girdi varsa hemen işle, boş durma.</b></li>
             <li><span class="badge kanban">KANBAN</span> turunda kural: <b>yalnızca boş kanban kartın varsa üret.</b> Sonraki istasyon parçanı çekince kartın geri gelir.</li>
             <li>Amaç her iki turda da müşteriye mümkün olduğunca çok ürün sevk etmek.</li>
-            <li>Eğitmen istasyonları 👁 ile canlı izleyebilir; izlenen telefonda "👁 Eğitmen izliyor" yazar. Yalnızca oyundaki iş alanı görünür.</li>
+            <li>Patron istasyonları 👁 ile canlı izleyebilir; izlenen telefonda "👁 Patron izliyor" yazar. Yalnızca oyundaki iş alanı görünür.</li>
           </ol>
         </div>
         ${slotsBlock()}
@@ -989,7 +1015,7 @@ function hostBuildResults(){
 }
 
 
-/* ---------------- 👁 Canlı istasyon izleme (eğitmen) ---------------- */
+/* ---------------- 👁 Canlı istasyon izleme (patron) ---------------- */
 function statusSVG(icon, l1, l2){ return `<rect x="4" y="4" width="312" height="222" rx="14" fill="#f6f7f9" stroke="#e2e5ea"/><text x="160" y="100" text-anchor="middle" font-size="44">${icon}</text><text x="160" y="142" text-anchor="middle" font-size="16" font-weight="800" fill="#1b2130">${l1}</text><text x="160" y="166" text-anchor="middle" font-size="12" fill="#667085">${l2||''}</text>`; }
 function applyBotProgress(T, g){
   if (T.type==='cut'){ T.prog = g; T.active = true; }
@@ -1003,6 +1029,11 @@ function applyBotProgress(T, g){
       else { s.x=s.hx; s.y=s.hy; s.h=-1; s.tight=false; } });
   }
   else if (T.type==='inspect'){ T.found = g > 0.85; }
+  else if (T.type==='paint'){
+    const order = []; for (let r=0;r<5;r++) for (let c=0;c<8;c++) order.push(r*8 + (r%2 ? 7-c : c));
+    const k = Math.floor(g * T.cells.length * 0.95); T.cells.forEach(c=>c.p=0); order.slice(0,k).forEach(i=>T.cells[i].p=1);
+    const lc = T.cells[order[Math.max(0,k-1)]]; T.last = {x:lc.x, y:lc.y};
+  }
   else if (T.type==='pack'){
     if (g < 0.4){ T.step='drag'; const q = g/0.4; T.px = T.hx+(242-T.hx)*q; T.py = T.hy+(158-T.hy)*q; }
     else if (g < 0.85){ T.step='tape'; T.px=242; T.py=158; T.prog = (g-0.4)/0.45; T.active = true; }
@@ -1215,9 +1246,9 @@ function playerRender(){
   const app = $('#app'), o = G.S;
   if (!o){
     setHTML(app, `<div class="ph"><h2>🏭 Kanban Hattı</h2><p>Merhaba <b>${esc(G.name)}</b> 👋</p>
-      <div class="waitbox info"><span class="ico">📡</span>Eğitmen ekranına bağlanılıyor…<br><span class="chip ${G.conn.s}" style="margin-top:8px">${esc(G.conn.m)}</span>
+      <div class="waitbox info"><span class="ico">📡</span>Patron ekranına bağlanılıyor…<br><span class="chip ${G.conn.s}" style="margin-top:8px">${esc(G.conn.m)}</span>
       <p class="small mut">Oda: ${esc(G.code)}</p>
-      ${G.conn.s==='ok' && G.okSince && Date.now()-G.okSince > 6000 ? `<div class="warn" style="text-align:left;margin-top:8px">Sunucuya bağlandın ama eğitmen ekranından veri gelmiyor. Kontrol et:<br>• Eğitmen ekranı açık ve ön planda mı?<br>• Projeksiyondaki oda kodu <b>${esc(G.code)}</b> mi?<br>• Eğitmen ekranının üstünde <b>"✓ Yayın doğrulandı"</b> yazıyor mu?</div>` : ''}</div></div>`);
+      ${G.conn.s==='ok' && G.okSince && Date.now()-G.okSince > 6000 ? `<div class="warn" style="text-align:left;margin-top:8px">Sunucuya bağlandın ama patron ekranından veri gelmiyor. Kontrol et:<br>• Patron ekranı açık ve ön planda mı?<br>• Projeksiyondaki oda kodu <b>${esc(G.code)}</b> mi?<br>• Patron ekranının üstünde <b>"✓ Yayın doğrulandı"</b> yazıyor mu?</div>` : ''}</div></div>`);
     G.view = ''; return;
   }
   const me = myIdx();
@@ -1260,7 +1291,7 @@ function updatePlayer(){
       ${mine ? `<div style="font-size:1.3em;font-weight:800;margin-top:6px">${LIB[mine].icon} ${me+1}. ${esc(LIB[mine].name)} ${(o.botts||[]).includes(me)?'<span class="bn">DARBOĞAZ</span>':''}</div>
         <div class="small" style="margin-top:4px"><b>Görevin:</b> ${esc(LIB[mine].task)}.</div>
         <div class="small mut">İş miktarı: <b>${workLabel(mine, o.as[me].m)}</b>${o.as[me].m>1?' (şiddet ×'+o.as[me].m+')':''} · tahmini ≈${fmt1(LIB[mine].op*o.as[me].m)} sn / ürün</div>` : `<div style="margin-top:6px"><b>Gözlemcisin.</b> Boş bir istasyon seçebilir ya da göstergeleri izleyebilirsin.</div>`}
-      <p class="small mut" style="margin-bottom:0">${o.ph==='res' ? '✅ Tur bitti. Sonuçlar projeksiyonda. Bir sonraki tur için bekleyin.' : 'Eğitmen turu başlatınca bu ekran istasyon paneline dönüşecek. Ekranı açık tutun.'}</p></div>`);
+      <p class="small mut" style="margin-bottom:0">${o.ph==='res' ? '✅ Tur bitti. Sonuçlar projeksiyonda. Bir sonraki tur için bekleyin.' : 'Patron turu başlatınca bu ekran istasyon paneline dönüşecek. Ekranı açık tutun.'}</p></div>`);
     setHTML($('#plist'), o.keys.map((k,j)=>{
       const a = o.as[j], taken = a.p && a.p!==G.pid && !a.bot;
       return `<button data-j="${j}" class="${a.p===G.pid?'me':''}" ${taken?'disabled':''}>${LIB[k].icon} <b>${j+1}. ${esc(LIB[k].name)}</b> ${(o.botts||[]).includes(j)?'<span class="bn">DARBOĞAZ</span>':''}<br><span class="small mut">${a.p===G.pid ? '✔ Sen' : a.p ? esc(a.pn) + (a.bot?' (bağlantı yok)':'') : '🤖 Bot (boş)'}</span></button>`;
@@ -1294,7 +1325,7 @@ function updatePlayer(){
   } else {
     setHTML($('#pout'), `<div class="l">ÇIKIŞIM (sonraki istasyonu bekleyen)</div><div class="v">${o.b[me]}</div><div class="mini">${'<i></i>'.repeat(Math.min(o.b[me],30))}</div>`);
   }
-  setHTML($('#pw'), o.w===me ? '<span class="chip wt">👁 Eğitmen izliyor</span>' : '');
+  setHTML($('#pw'), o.w===me ? '<span class="chip wt">👁 Patron izliyor</span>' : '');
   setHTML($('#pcount'), `İşlediğin: <b>${a.c}</b>${a.oa ? ` · ürün başına ort. <b>${fmt1(a.oa)} sn</b> (tahmini ≈${fmt1(L.op*a.m)})` : ''}`);
   setHTML($('#pconn'), `<span class="chip ${G.conn.s}">● ${esc(G.conn.m)}</span>`);
   const pcd = $('#pcd');
@@ -1322,8 +1353,8 @@ function updateMain(o, me, a, L){
   }
   let k, html, isTask = false;
   if (o.ph==='cd'){ k='cd'; html = `<div class="waitbox info"><span class="ico">⏱️</span>Hazırlan…<div class="small" style="font-weight:500;margin-top:6px">Görevin: ${esc(L.task)}</div></div>`; }
-  else if ((o.sp||1) > 1){ k='fast'; html = `<div class="waitbox info"><span class="ico">⚡</span>Test modu (x${o.sp})<br><span style="font-weight:500">Eğitmen simülasyonu hızlandırdı; istasyonunu şu an bot çalıştırıyor.</span></div>`; }
-  else if (a.fb){ k='fb'; html = `<div class="waitbox info"><span class="ico">🤖</span>Bu istasyonu şu an eğitmen bota verdi.</div>`; }
+  else if ((o.sp||1) > 1){ k='fast'; html = `<div class="waitbox info"><span class="ico">⚡</span>Test modu (x${o.sp})<br><span style="font-weight:500">Patron simülasyonu hızlandırdı; istasyonunu şu an bot çalıştırıyor.</span></div>`; }
+  else if (a.fb){ k='fb'; html = `<div class="waitbox info"><span class="ico">🤖</span>Bu istasyonu şu an patron bota verdi.</div>`; }
   else if (G.task){
     k = 't' + G.task.u + (G.task.done?'d':'');
     if (G.task.done) html = `<div class="machine"><div style="font-size:2em">✅</div><b>Bitti — parça gönderiliyor…</b></div>`;
@@ -1415,6 +1446,9 @@ function initStage(T){
   if (T.type==='trace'){ T.shape = SEAMS[T.stage % 3]; T.path = seamPath(T.shape); T.samp = sampleLine(T.path,4); T.i=0; }
   if (T.type==='drag'){ T.holes = spreadPts(3, 55,265, 45,125, 80).map(p=>({x:p.x, y:p.y, f:false})); T.sc=[70,160,250].map(x=>({x, y:198, hx:x, hy:198, h:-1, tight:false})); T.dr=-1; }
   if (T.type==='inspect'){ T.allGood = Math.random() < 0.25; T.bad = T.allGood ? -1 : Math.floor(Math.random()*4); T.kind = ['eksik','catlak','fazla'][Math.floor(Math.random()*3)]; T.found=false; }
+  if (T.type==='paint'){ // 8×5 = 40 hücre; parmağın geçtiği yer boyanır
+    T.cells = []; for (let r=0;r<5;r++) for (let c=0;c<8;c++) T.cells.push({x:22+34.5*c+17.25, y:28+34.8*r+17.4, p:0});
+    T.last = null; T.col = ['#3a66c4','#d64545','#0f8a6c','#c98a12','#8a4fc4'][T.stage % 5]; }
   if (T.type==='pack'){ T.step='drag'; T.px=T.hx=72; T.py=T.hy=140; T.dr=false; T.a={x:178,y:98}; T.b={x:306,y:98}; T.prog=0; T.labeled=false; }
 }
 function swipeDown(T,p){ const r = projSeg(p,T.a,T.b); if (r.d < 36 && r.t <= T.prog + 0.12) T.active = true; }
@@ -1426,7 +1460,9 @@ function swipeMove(T,p){
 }
 const LABEL_BOX = {x0:206, x1:278, y0:128, y1:178};
 const INSPECT_CELLS = [[12,6],[164,6],[12,100],[164,100]], OKBTN = {x0:70, x1:250, y0:197, y1:226};
+function paintAt(T,p){ T.cells.forEach(c=>{ if (!c.p && Math.hypot(c.x-p.x, c.y-p.y) < 30) c.p = 1; }); }
 function taskDown(T,p){
+  if (T.type==='paint'){ if (p.x>10 && p.x<310 && p.y>16 && p.y<214){ T.active = true; T.last = p; paintAt(T,p); } return; }
   if (T.type==='cut') swipeDown(T,p);
   else if (T.type==='hold'){ const h = T.pts[T.cur]; if (h && Math.hypot(p.x-h.x,p.y-h.y) < 42){ T.hs = performance.now(); T.fill = 0; requestAnimationFrame(holdLoop); } }
   else if (T.type==='trace'){ const s = T.samp[T.i]; if (Math.hypot(p.x-s.x,p.y-s.y) < 38) T.active = true; }
@@ -1450,6 +1486,12 @@ function taskDown(T,p){
   }
 }
 function taskMove(T,p){
+  if (T.type==='paint'){
+    if (!T.active) return;
+    const a = T.last || p, n = Math.max(1, Math.ceil(Math.hypot(p.x-a.x, p.y-a.y)/8));
+    for (let k=1;k<=n;k++) paintAt(T, {x:a.x+(p.x-a.x)*k/n, y:a.y+(p.y-a.y)*k/n});
+    T.last = p; return;
+  }
   if (T.type==='cut') swipeMove(T,p);
   else if (T.type==='hold'){ const h = T.pts[T.cur]; if (T.hs && h && Math.hypot(p.x-h.x,p.y-h.y) > 50){ T.hs = 0; T.fill = 0; } }
   else if (T.type==='trace'){
@@ -1466,6 +1508,7 @@ function taskMove(T,p){
   }
 }
 function taskUp(T,p){
+  if (T.type==='paint'){ T.active = false; T.last = null; return; }
   if (T.type==='cut' || T.type==='trace') T.active = false;
   else if (T.type==='hold'){ if (T.hs){ T.hs = 0; T.fill = 0; } }
   else if (T.type==='drag' && T.dr>=0){
@@ -1498,6 +1541,7 @@ function stageDone(T){
     case 'drag': return T.sc.every(s=>s.h>=0 && s.tight);
     case 'inspect': return !!T.found;
     case 'pack': return T.step==='label' && T.labeled;
+    case 'paint': return T.cells.filter(c=>c.p).length >= 0.9*T.cells.length;
   }
   return false;
 }
@@ -1576,6 +1620,11 @@ function taskSVG(T){
     return cells + `<rect x="${OKBTN.x0}" y="${OKBTN.y0}" width="${OKBTN.x1-OKBTN.x0}" height="${OKBTN.y1-OKBTN.y0}" rx="13" fill="${bw?'#fde2e2':'#e6f4ec'}" stroke="${bw?'#d64545':'#2e9e5b'}" stroke-width="2.5"/>
       <text x="160" y="${OKBTN.y0+19}" text-anchor="middle" font-size="14" font-weight="900" fill="${bw?'#d64545':'#11643f'}">${bw?'✗ Kusurlu parça var!':'Hepsi sağlam ✓'}</text>`;
   }
+  if (T.type==='paint'){
+    return PLATE + T.cells.map(c=>c.p ? `<rect x="${(c.x-17.6).toFixed(1)}" y="${(c.y-17.8).toFixed(1)}" width="35.2" height="35.6" fill="${T.col}" opacity=".88"/>`
+        : `<rect x="${(c.x-15).toFixed(1)}" y="${(c.y-15).toFixed(1)}" width="30" height="30" rx="5" fill="none" stroke="#9aa3ad" stroke-width="1.5" stroke-dasharray="4 4"/>`).join('') +
+      (T.last ? `<text x="${T.last.x}" y="${T.last.y+10}" text-anchor="middle" font-size="28">🖌️</text>` : '');
+  }
   if (T.type==='pack'){
     const P = {x:T.a.x+(T.b.x-T.a.x)*T.prog, y:T.a.y};
     const box = `<rect x="178" y="100" width="128" height="112" fill="#c89a5b" stroke="#8d6a33" stroke-width="3"/><text x="242" y="226" text-anchor="middle" font-size="11" fill="#667085" font-weight="700">KOLİ</text>`;
@@ -1597,6 +1646,7 @@ function taskSVG(T){
 function taskStatus(T){
   const many = T.stages > 1;
   switch (T.type){
+    case 'paint': { const pc = Math.round(T.cells.filter(c=>c.p).length/T.cells.length*100); return `🎨 ${many ? 'Kat ' + (T.stage+1) + '/' + T.stages + ' · ' : ''}Boyanan: %${pc} (hedef %90)`; }
     case 'cut': return `✂️ ${many ? 'Kesim ' + (T.stage+1) + '/' + T.stages + ' · ' : ''}%${Math.round(T.prog*100)}`;
     case 'hold': { const n = T.pts.length; return `🔩 Delik ${Math.min(T.stage*n + T.cur + 1, T.stages*n)}/${T.stages*n} — basılı tut`; }
     case 'trace': return `🔥 ${many ? 'Dikiş ' + (T.stage+1) + '/' + T.stages + ' (' + SEAM_TR[T.shape] + ') · ' : ''}%${Math.round(T.i/(T.samp.length-1)*100)}`;
@@ -1615,7 +1665,7 @@ function renderTask(){
 
 /* ---------------- Başlat ---------------- */
 if (P.get('oda')) startPlayer(P.get('oda').toUpperCase().trim(), P.get('b') || 'A');
-else if (P.get('rol') === 'egitmen') startHost(P.get('b') || 'A');
+else if (P.get('rol') === 'egitmen' || P.get('rol') === 'patron') startHost(P.get('b') || 'A');
 else renderLanding();
 </script>
 </body>
