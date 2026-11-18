@@ -1,0 +1,1622 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#1d2330">
+<title>Kanban Hat Simülasyonu</title>
+<style>
+:root{
+  --bg:#f3f4f6;--card:#fff;--ink:#1b2130;--mut:#667085;--line:#e2e5ea;
+  --push:#d64545;--kan:#0f8a6c;--r3:#3a66c4;--r4:#c98a12;
+  --work:#2e9e5b;--starve:#e0a000;--block:#3a7bd5;--idle:#9aa3ad;--accent:#1b2130;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;-webkit-tap-highlight-color:transparent}
+button{font:inherit;cursor:pointer;border:0;border-radius:10px;padding:.6em 1em;background:var(--accent);color:#fff;font-weight:600}
+button:disabled{opacity:.4;cursor:not-allowed}
+button.ghost{background:#fff;color:var(--ink);border:1px solid var(--line)}
+button.green{background:var(--kan)}
+button.red{background:var(--push)}
+select,input{font:inherit;padding:.5em .6em;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--ink)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px}
+.mut{color:var(--mut)}
+.small{font-size:.85em}
+.row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:99px;font-size:.8em;font-weight:600;background:#eef0f3;color:var(--ink)}
+.chip.ok{background:#dcf3e7;color:#11643f}.chip.wait{background:#fff3cd;color:#7a5a00}.chip.err{background:#fde2e2;color:#9b1c1c}
+.badge{display:inline-block;padding:4px 12px;border-radius:8px;font-weight:800;letter-spacing:.04em;color:#fff}
+.badge.push{background:var(--push)}.badge.kanban{background:var(--kan)}
+.bn{display:inline-block;background:#1b2130;color:#ffd24d;font-size:.62em;font-weight:800;padding:2px 6px;border-radius:5px;letter-spacing:.05em;vertical-align:middle}
+h1,h2,h3{margin:.2em 0 .4em}
+
+/* ---------- landing ---------- */
+.landing{max-width:860px;margin:0 auto;padding:28px 16px}
+.landing .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media (max-width:700px){.landing .grid{grid-template-columns:1fr}}
+
+/* ---------- HOST ---------- */
+.host{padding:14px 18px;max-width:1700px;margin:0 auto;font-size:clamp(14px,1.05vw,19px)}
+.htop{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:12px}
+.htop .title{font-size:1.35em;font-weight:800}
+.htop .spacer{flex:1}
+.code{font-family:ui-monospace,Menlo,Consolas,monospace;font-weight:800;letter-spacing:.12em}
+.lobby{display:grid;grid-template-columns:320px 1fr;gap:16px}
+@media (max-width:1000px){.lobby{grid-template-columns:1fr}}
+.qrbox{text-align:center}
+.qrbox #qr{display:inline-block;padding:10px;background:#fff;border-radius:10px;min-height:120px}
+.qrbox .bigcode{font-size:3em;margin:.1em 0}
+.slots{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px}
+.slot{border:2px solid var(--line);border-radius:12px;padding:10px;background:#fafbfc}
+.slot.has{border-color:var(--kan);background:#f1faf6}
+.slot.bot{border-style:dashed}
+.slot .nm{font-weight:800}
+.slot .who{margin:6px 0;font-size:.95em}
+.slot .acts{display:flex;gap:6px;flex-wrap:wrap}
+.slot .sev{display:flex;align-items:center;gap:6px;margin:4px 0 2px}
+.slot .sev select{padding:.2em .4em;font-weight:700}
+.slot .acts button{padding:.3em .6em;font-size:.8em}
+.settings{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:10px;margin-top:6px}
+.settings label{display:flex;flex-direction:column;gap:4px;font-size:.85em;color:var(--mut);font-weight:600}
+.rules{font-size:.92em;line-height:1.45}
+.rules li{margin:.2em 0}
+
+.kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:12px}
+.kpi{background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 14px}
+.kpi .l{font-size:.8em;color:var(--mut);font-weight:600}
+.kpi .v{font-size:2.1em;font-weight:800;line-height:1.1}
+.kpi .s{font-size:.75em;color:var(--mut)}
+.line{display:flex;align-items:stretch;gap:0;overflow-x:auto;padding:6px 2px 10px;background:#fff;border:1px solid var(--line);border-radius:14px;margin-bottom:12px}
+.endcap{min-width:86px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;font-weight:700;padding:6px}
+.endcap .big{font-size:2em;font-weight:800}
+.stc{flex:1 1 0;min-width:150px;border:3px solid var(--idle);border-radius:12px;padding:8px 10px;margin:4px 0;background:#fff;cursor:pointer;user-select:none}
+.stc.s-work{border-color:var(--work);background:#f0faf4}
+.stc.s-starved{border-color:var(--starve);background:#fffaeb}
+.stc.s-blocked{border-color:var(--block);background:#eef4ff}
+.stc .sth{font-weight:800;font-size:1.02em;line-height:1.25}
+.stc .op{font-size:.85em;color:var(--mut);margin:2px 0 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pbar{height:12px;background:#e9ecef;border-radius:6px;overflow:hidden;position:relative}
+.pbar i{position:absolute;left:0;top:0;bottom:0;background:var(--work);border-radius:6px}
+.pbar.manual i{width:100%!important;background:repeating-linear-gradient(45deg,#7cc79a 0 8px,#a9dcbd 8px 16px);animation:mv 1s linear infinite;background-size:22px 22px}
+@keyframes mv{to{background-position:22px 0}}
+.stc .stt{font-size:.82em;font-weight:700;margin-top:5px}
+.stc .cnt{font-size:.8em;color:var(--mut)}
+.cards{display:flex;gap:4px;margin-top:6px;align-items:center;font-size:.75em;color:var(--mut)}
+.cards b{display:inline-block;width:16px;height:22px;border-radius:3px;border:2px solid var(--kan)}
+.cards b.u{background:var(--kan)}
+.buf{min-width:70px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;padding:4px 4px}
+.buf .n{font-weight:800;font-size:1.4em}
+.buf .n.hot{color:var(--push)}
+.buf .stack{display:flex;flex-wrap:wrap-reverse;width:56px;gap:2px;justify-content:center;align-content:flex-start;min-height:20px}
+.buf .stack i{width:12px;height:9px;background:#c49a5a;border:1px solid #8d6a33;border-radius:2px}
+.buf .ar{color:var(--mut);font-size:1.3em;line-height:1}
+.charts2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.charts3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+@media (max-width:1100px){.charts2,.charts3{grid-template-columns:1fr}}
+.chartcard{background:#fff;border:1px solid var(--line);border-radius:14px;padding:10px 12px}
+.chartcard h3{font-size:.95em;margin:0 0 4px}
+.chartcard canvas{width:100%;height:270px;display:block}
+.cd{position:fixed;inset:0;background:rgba(27,33,48,.88);color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:50}
+.cd .n{font-size:22vh;font-weight:900;line-height:1}
+.tbl{width:100%;border-collapse:collapse;font-size:.95em}
+.tbl th,.tbl td{padding:7px 10px;border-bottom:1px solid var(--line);text-align:right}
+.tbl th:first-child,.tbl td:first-child{text-align:left}
+.tbl thead th{font-size:.85em;color:var(--mut)}
+.tbl tr.key td{font-weight:800}
+.effect{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:10px 0}
+.effect .e{border-radius:12px;padding:12px;background:#f1faf6;border:1px solid #bfe6d6}
+.effect .e .v{font-size:1.9em;font-weight:900;color:var(--kan)}
+.effect .e .v.neu{color:var(--ink)}
+.effect .e .l{font-size:.82em;font-weight:600;color:var(--mut)}
+
+/* ---------- PLAYER (phone) ---------- */
+.ph{max-width:520px;margin:0 auto;min-height:100vh;min-height:100dvh;display:flex;flex-direction:column;padding:10px 12px 14px;font-size:16px}
+.phead{display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap}
+#pw:empty{display:none}
+#pw{order:3;flex-basis:100%}
+.phead .st{font-weight:800;font-size:1.25em;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.phead .tm{font-family:ui-monospace,Menlo,monospace;font-weight:800;font-size:1.2em}
+.prule{font-size:.88em;padding:8px 10px;border-radius:10px;margin-bottom:8px;color:#fff}
+.prule.push{background:var(--push)}.prule.kanban{background:var(--kan)}
+.pio{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px}
+.pio .box{background:#fff;border:1px solid var(--line);border-radius:12px;padding:8px 10px;min-height:74px}
+.pio .box .l{font-size:.75em;color:var(--mut);font-weight:700}
+.pio .box .v{font-size:1.6em;font-weight:800}
+.mini{display:flex;flex-wrap:wrap;gap:2px;margin-top:3px}
+.mini i{width:10px;height:8px;background:#c49a5a;border:1px solid #8d6a33;border-radius:2px}
+.kc{display:flex;gap:4px;margin-top:4px}
+.kc b{width:18px;height:24px;border-radius:4px;border:2px solid var(--kan)}
+.kc b.u{background:var(--kan)}
+.pmain{flex:1;display:flex;flex-direction:column;justify-content:center;align-items:stretch;gap:10px;min-height:280px}
+.bigbtn{width:100%;padding:0;height:min(42vh,260px);font-size:2.6em;font-weight:900;border-radius:22px;background:var(--work);box-shadow:0 6px 0 #1f7a43;letter-spacing:.04em}
+.bigbtn:active{transform:translateY(4px);box-shadow:0 2px 0 #1f7a43}
+.waitbox{border-radius:18px;padding:22px 16px;text-align:center;font-weight:700;font-size:1.15em;line-height:1.4}
+.waitbox.starved{background:#fff3cd;color:#6d5000;border:2px solid var(--starve)}
+.waitbox.blocked{background:#e6efff;color:#1e4a8f;border:2px solid var(--block)}
+.waitbox.info{background:#fff;border:2px solid var(--line)}
+.waitbox .ico{font-size:2.2em;display:block;margin-bottom:6px}
+.task{background:#fff;border:2px solid var(--line);border-radius:18px;padding:8px;text-align:center}
+.task .tt{font-weight:800;margin:4px 0 6px}
+.task svg{width:100%;height:auto;touch-action:manipulation;display:block}
+.task .tg{cursor:pointer}
+.task .tg circle.c{fill:#ffd24d;stroke:#1b2130;stroke-width:3}
+.task .tg.done circle.c{fill:var(--work);stroke:#1f7a43}
+.task .tg.next circle.c{animation:pulse .8s ease-in-out infinite}
+.task .tg text{font-weight:900;font-size:22px;pointer-events:none}
+@keyframes pulse{50%{stroke-width:7}}
+.machine{background:#fff;border:2px solid var(--line);border-radius:18px;padding:18px;text-align:center}
+.machine .pbar{height:26px;border-radius:13px;margin:12px 0}
+.machine .pbar i{border-radius:13px}
+.pfoot{display:flex;justify-content:space-between;font-size:.85em;color:var(--mut);margin-top:8px}
+.plist{display:grid;gap:8px}
+.plist button{text-align:left;background:#fff;color:var(--ink);border:2px solid var(--line);padding:12px}
+.plist button.me{border-color:var(--kan);background:#f1faf6}
+.plist button:disabled{opacity:.5}
+.pk{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.pk .box{background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px}
+.pk .box .v{font-size:1.7em;font-weight:800}
+.pk .box .l{font-size:.75em;color:var(--mut);font-weight:700}
+.cdp{font-size:30vw;font-weight:900;text-align:center;line-height:1}
+.shake{animation:shk .25s}
+@keyframes shk{25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+.warn{background:#fff3cd;border:1px solid #f0d58a;color:#6d5000;border-radius:10px;padding:8px 12px;font-size:.88em}
+
+.stc .pt{font-size:.8em;color:var(--ink);line-height:1.3}
+.stc .pt .mut{font-size:.9em}
+.rb{display:inline-block;background:#ffe3e3;color:#a31b1b;font-size:.62em;font-weight:800;padding:2px 6px;border-radius:5px;vertical-align:middle}
+.rbt{color:#a31b1b}
+.spdw{display:inline-flex;align-items:center;gap:2px;font-weight:700}
+.spdw button{padding:.3em .55em;font-size:.85em;background:#fff;color:var(--ink);border:1px solid var(--line);border-radius:8px}
+.spdw button.on{background:var(--ink);color:#fff}
+.badge.trial{background:#6b4fc4}
+.prule.trial{background:#6b4fc4}
+.task svg{touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+.pulse{animation:pulse .8s ease-in-out infinite}
+.ph{overscroll-behavior:none}
+details summary{list-style:revert}
+
+.eye{float:right;padding:1px 7px;font-size:.85em;background:#fff;color:var(--ink);border:1px solid var(--line);border-radius:8px;margin-left:4px}
+.eye.on{background:#3a7bd5;color:#fff;border-color:#3a7bd5}
+.watch{position:fixed;right:16px;bottom:16px;width:min(440px,40vw);background:#fff;border:2px solid #3a7bd5;border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.18);padding:10px 12px;z-index:40}
+.watch .wh{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.watch .wh #wwho{flex:1;color:var(--mut);font-size:.9em}
+.watch svg{width:100%;height:auto;display:block;background:#fafbfc;border-radius:10px}
+.watch #wclose{padding:.2em .6em}
+.watch #winfo{margin-top:6px;line-height:1.4}
+.chip.wt{background:#e6efff;color:#1e4a8f}
+.ctbl .dl{font-size:.72em;font-weight:700;color:var(--mut)}
+.ctbl .dl.good{color:var(--kan)} .ctbl .dl.bad{color:var(--push)}
+.hcard .rv{display:grid;grid-template-columns:12px 58px 1fr auto;align-items:baseline;gap:6px;margin:3px 0}
+.hcard .rv .dot{width:10px;height:10px;border-radius:3px;align-self:center}
+.hcard .rv .lb{font-weight:800;font-size:.85em}
+.hcard .rv .v{font-size:1.45em;font-weight:900}
+.hcard .rv .v small{font-size:.5em;color:var(--mut);font-weight:600}
+.hcard .rv .dl{font-size:.85em;font-weight:800;color:var(--mut)}
+.hcard .rv .dl.good{color:var(--kan)} .hcard .rv .dl.bad{color:var(--push)}
+
+/* ---------- karşılaştırma ekranı ---------- */
+.cmpT{font-size:1.5em;font-weight:800;margin:2px 0 12px}
+.cmpT small{display:block;font-size:.55em;font-weight:500;color:var(--mut);margin-top:2px}
+.heads{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:12px}
+@media (max-width:1100px){.heads{grid-template-columns:1fr 1fr}}
+.hcard{background:#fff;border:1px solid var(--line);border-radius:16px;padding:14px 16px;position:relative;overflow:hidden}
+.hcard .l{font-size:.9em;font-weight:700;color:var(--mut)}
+.hcard .big{font-size:2.7em;font-weight:900;line-height:1.05;margin:4px 0}
+.hcard .big.good{color:var(--kan)}
+.hcard .vs{display:flex;gap:10px;align-items:baseline;font-weight:800;font-size:1.15em}
+.hcard .vs .p{color:var(--push)}.hcard .vs .k{color:var(--kan)}
+.hcard .note{font-size:.8em;color:var(--mut);margin-top:4px}
+.cmpgrid{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);gap:12px;margin-bottom:12px}
+@media (max-width:1200px){.cmpgrid{grid-template-columns:1fr}}
+.ctbl{width:100%;border-collapse:collapse}
+.ctbl th,.ctbl td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:right;font-variant-numeric:tabular-nums}
+.ctbl th:first-child,.ctbl td:first-child{text-align:left}
+.ctbl thead th{font-size:.95em}
+.ctbl thead th.p{color:#fff;background:var(--push);border-radius:8px 8px 0 0}
+.ctbl thead th.k{color:#fff;background:var(--kan);border-radius:8px 8px 0 0}
+.ctbl td.p{background:#fdf1f1;font-weight:700}
+.ctbl td.k{background:#eef8f4;font-weight:700}
+.ctbl td .u{font-size:.75em;color:var(--mut);font-weight:500}
+.ctbl td.d{font-weight:800;white-space:nowrap}
+.d.good{color:var(--kan)}.d.bad{color:var(--push)}.d.neu{color:var(--mut)}
+.snapwrap h3{margin:0 0 6px}
+.snap{display:flex;align-items:flex-end;gap:4px;padding:8px 6px;border-radius:12px;margin-bottom:8px;overflow-x:auto}
+.snap.p{background:#fdf1f1;border:1px solid #f3c9c9}.snap.k{background:#eef8f4;border:1px solid #bfe6d6}
+.snap .tag{writing-mode:vertical-rl;transform:rotate(180deg);font-weight:900;color:#fff;border-radius:6px;padding:6px 3px;align-self:stretch;text-align:center;font-size:.8em}
+.snap.p .tag{background:var(--push)}.snap.k .tag{background:var(--kan)}
+.snap .sn{min-width:0;flex:1 1 0;text-align:center;font-size:.72em;font-weight:700;background:#fff;border:2px solid var(--line);border-radius:8px;padding:4px 3px;line-height:1.2}
+.snap .sn.bt{border-color:#1b2130}
+.snap .pile{min-width:0;flex:0 0 40px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end}
+.snap .pile .n{font-weight:900;font-size:1.05em}
+.snap .pile .n.hot{color:var(--push)}
+.snap .pile .st{display:flex;flex-wrap:wrap-reverse;width:40px;gap:1px;justify-content:center}
+.snap .pile .st i{width:9px;height:7px;background:#c49a5a;border:1px solid #8d6a33;border-radius:1px}
+.snap .end{min-width:0;flex:0 0 58px;text-align:center;font-size:.72em;font-weight:700}
+.snap .end b{display:block;font-size:1.5em}
+.msgs{margin:0;padding-left:1.1em;line-height:1.45}
+.msgs li{margin:.35em 0}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script>
+'use strict';
+/* =====================================================================
+   Kanban Hat Simülasyonu — İtme (push) vs. Kanban (pull)
+   Tek dosya. Eğitmen ekranı = simülasyonun sahibi (otorite).
+   Telefonlar = istasyon kumandası. Haberleşme: herkese açık MQTT sunucusu.
+   ===================================================================== */
+const TOPIC_ROOT = 'kanbanlab-ytu-v1';
+const BROKERS = [
+  // 443 numaralı standart bağlantı noktası: okul/ev ağlarında engellenmez
+  {name:'Shiftr',    url:'wss://public.cloud.shiftr.io', opts:{username:'public', password:'public'}},
+  {name:'HiveMQ',    url:'wss://broker.hivemq.com:8884/mqtt'},
+  {name:'EMQX',      url:'wss://broker.emqx.io:8084/mqtt'},
+  {name:'Mosquitto', url:'wss://test.mosquitto.org:8081/mqtt'}
+];
+const LIB = {
+  // op = bir ürün için operatörden beklenen el işi süresi (sn, tahmini). Makine süresi yok: süreyi öğrenci belirler.
+  kesim:  {name:'Kesim',            icon:'✂️', type:'cut',     op:1.8, task:'Kesik çizgi boyunca parmağını kaydır'},
+  delme:  {name:'Delme',            icon:'🔩', type:'hold',    op:5.0, task:'Deliklere sırayla basılı tut, halka dolunca bırak'},
+  kaynak: {name:'Kaynak',           icon:'🔥', type:'trace',   op:7.0, task:'Dikiş hattını parmağınla baştan sona takip et'},
+  montaj: {name:'Montaj',           icon:'🔧', type:'drag',    op:4.0, task:'Vidaları deliklere sürükle, sonra her birine dokunup sık'},
+  kalite: {name:'Kalite Kontrol',   icon:'🔍', type:'inspect', op:3.0, task:'Kusurlu parçayı bul ya da "Hepsi sağlam"a bas'},
+  paket:  {name:'Paketleme & Sevk', icon:'📦', type:'pack',    op:4.0, task:'Ürünü koliye sürükle, bandı çek, etikete dokun'}
+};
+// Her istasyonun iş miktarı ×m şiddetle çarpılır (ör. Kaynak ×2 → 4 dikiş). Planlanan darboğaz = planlanan süresi en uzun istasyon.
+function workLabel(key, m){ return {kesim:m+' kesim', delme:(5*m)+' delik', kaynak:(2*m)+' dikiş', montaj:(3*m)+' vida', kalite:m+' grup', paket:m+' ürün'}[key]; }
+function plannedBotts(keys, mult){
+  const v = keys.map((k,j)=>LIB[k].op*(mult[j]||1)), mx = Math.max(...v);
+  return {primary:v.indexOf(mx), list:v.map((x,j)=>x>=mx*0.9?j:-1).filter(j=>j>=0), v};
+}
+const multStr = (names, mult) => names.map((n,j)=>(mult[j]||1)>1 ? n+' ×'+mult[j] : null).filter(Boolean).join(', ') || 'hepsi ×1';
+const SPEEDS = [1,2,4,8,16];
+const LINES = {
+  4:['kesim','delme','kaynak','paket'],
+  5:['kesim','delme','kaynak','montaj','paket'],
+  6:['kesim','delme','kaynak','montaj','kalite','paket']
+};
+const ROUND_COLORS = ['#d64545','#0f8a6c','#3a66c4','#c98a12','#8a4fc4','#555'];
+const OFFLINE_MS = 12000;
+
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const rnd = (a,b) => a + Math.random()*(b-a);
+const mean = a => a.length ? a.reduce((x,y)=>x+y,0)/a.length : NaN;
+const fmtClock = ms => { ms = Math.max(0, ms); const s = Math.ceil(ms/1000); return Math.floor(s/60) + ':' + String(s%60).padStart(2,'0'); };
+const fmtSec = x => (x==null || isNaN(x)) ? '—' : Math.round(x) + ' sn';
+const fmt1 = x => (x==null || isNaN(x)) ? '—' : (Math.round(x*10)/10).toLocaleString('tr-TR');
+const store = {
+  get(k){ try { return localStorage.getItem(k); } catch(e){ return null; } },
+  set(k,v){ try { localStorage.setItem(k,v); } catch(e){} }
+};
+function setHTML(el, html){ if(el && el._h !== html){ el.innerHTML = html; el._h = html; } }
+function modeLabel(mode,K){ return mode==='push' ? 'İTME' : 'KANBAN (K=' + K + ')'; }
+
+/* ---------------- Transport (MQTT ya da yerel test) ---------------- */
+function loadScript(src){
+  return new Promise((res,rej)=>{ const s=document.createElement('script'); s.src=src; s.onload=res; s.onerror=rej; document.head.appendChild(s); });
+}
+async function ensureMqtt(){
+  if (window.mqtt) return;
+  for (const u of ['https://unpkg.com/mqtt@5/dist/mqtt.min.js','https://cdn.jsdelivr.net/npm/mqtt@5/dist/mqtt.min.js']){
+    try { await loadScript(u); if (window.mqtt) return; } catch(e){}
+  }
+  throw new Error('MQTT kütüphanesi yüklenemedi (internet?)');
+}
+function createTransport(b, room, subs, onMsg, onStatus){
+  const base = TOPIC_ROOT + '/' + room + '/';
+  if (b === 'L'){ // tek bilgisayarda test: sekmeler arası
+    const ch = new BroadcastChannel('kanbanlab-' + room);
+    ch.onmessage = e => { const d = e.data; if (d && subs.includes(d.sub)) onMsg(d.sub, d.obj); };
+    setTimeout(()=>onStatus('ok','Yerel test kanalı'), 30);
+    return { pub(sub,obj){ ch.postMessage({sub,obj}); }, close(){ ch.close(); } };
+  }
+  // 'A' = otomatik: tüm sunuculara aynı anda bağlan, hangisi çalışıyorsa onu kullan
+  const list = b === 'A' ? BROKERS.slice() : [BROKERS[+b] || BROKERS[0]];
+  const clients = [];
+  let closed = false, libErr = '';
+  const dec = new TextDecoder();
+  const report = ()=>{
+    const ok = clients.filter(c=>c.connected).map(c=>c._kl);
+    if (ok.length) onStatus('ok', 'Bağlı: ' + ok.join(', '));
+    else if (libErr) onStatus('err', libErr);
+    else onStatus('wait', 'Sunucuya bağlanıyor…');
+  };
+  onStatus('wait', 'Sunucuya bağlanıyor…');
+  ensureMqtt().then(()=>{
+    if (closed) return;
+    list.forEach(br=>{
+      let c;
+      try { c = mqtt.connect(br.url, Object.assign({clientId:'kl_'+Math.random().toString(36).slice(2,10), clean:true, connectTimeout:8000, reconnectPeriod:3000, keepalive:30}, br.opts||{})); }
+      catch(e){ return; }
+      c._kl = br.name; clients.push(c);
+      c.on('connect', ()=>{ c.subscribe(subs.map(s=>base+s), {qos:0}); report(); });
+      c.on('close', report); c.on('offline', report); c.on('error', report);
+      c.on('message', (topic, payload)=>{
+        const sub = topic.slice(base.length);
+        try { onMsg(sub, JSON.parse(typeof payload==='string' ? payload : dec.decode(payload))); } catch(e){}
+      });
+    });
+    setTimeout(()=>{ if (!clients.some(c=>c.connected)) onStatus('err', 'Sunuculara ulaşılamıyor — ağı değiştirin (mobil veri)'); }, 12000);
+  }).catch(e=>{ libErr = e.message; report(); });
+  return {
+    pub(sub,obj,retain){ const m = JSON.stringify(obj); clients.forEach(c=>{ if (c.connected) c.publish(base+sub, m, {qos:0, retain:!!retain}); }); },
+    close(){ closed = true; clients.forEach(c=>c.end(true)); }
+  };
+}
+
+/* ---------------- Grafikler (canvas) ---------------- */
+function setupCanvas(cv){
+  const dpr = window.devicePixelRatio || 1;
+  const r = cv.getBoundingClientRect();
+  const w = Math.max(200, r.width), h = Math.max(120, r.height);
+  if (cv.width !== Math.round(w*dpr) || cv.height !== Math.round(h*dpr)){ cv.width = Math.round(w*dpr); cv.height = Math.round(h*dpr); }
+  const ctx = cv.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0); ctx.clearRect(0,0,w,h);
+  return {ctx,w,h};
+}
+function niceMax(v){ if (!(v>0)) return 1; const p = Math.pow(10, Math.floor(Math.log10(v))); for (const m of [1,1.5,2,2.5,3,4,5,6,8,10]) if (m*p >= v) return m*p; return 10*p; }
+function niceStep(max, n){ const raw = max/n; const p = Math.pow(10, Math.floor(Math.log10(raw))); for (const m of [1,2,2.5,5,10]) if (m*p >= raw) return m*p; return 10*p; }
+function lineChart(cv, series, o){
+  if (!cv) return;
+  const {ctx,w,h} = setupCanvas(cv);
+  const L=46, R=10, T=26, B=30;
+  let xm = o.xMax || 1, ym = o.yMin || 1;
+  series.forEach(s=>s.pts.forEach(([x,y])=>{ if (x>xm) xm=x; if (y>ym) ym=y; }));
+  ym = niceMax(ym*1.08);
+  const X = x => L + (x/xm)*(w-L-R), Y = y => h-B - (y/ym)*(h-T-B);
+  ctx.font = '12px system-ui,sans-serif'; ctx.fillStyle = '#667085'; ctx.strokeStyle = '#e8eaee'; ctx.lineWidth = 1;
+  const ys = niceStep(ym,4);
+  for (let v=0; v<=ym+1e-9; v+=ys){ ctx.beginPath(); ctx.moveTo(L,Y(v)); ctx.lineTo(w-R,Y(v)); ctx.stroke(); ctx.textAlign='right'; ctx.fillText((Math.round(v*10)/10).toLocaleString('tr-TR'), L-6, Y(v)+4); }
+  const xs = niceStep(xm,6);
+  ctx.textAlign='center';
+  for (let v=0; v<=xm+1e-9; v+=xs){ ctx.fillText(Math.round(v), X(v), h-B+15); }
+  ctx.textAlign='left'; ctx.fillText(o.yLabel||'', 4, 14);
+  ctx.textAlign='right'; ctx.fillText(o.xLabel||'', w-R, h-4);
+  series.forEach(s=>{
+    ctx.strokeStyle = s.color; ctx.fillStyle = s.color; ctx.globalAlpha = s.alpha ?? 1;
+    if (s.dots){
+      s.pts.forEach(([x,y])=>{ ctx.beginPath(); ctx.arc(X(x),Y(y),3.2,0,7); ctx.fill(); });
+    } else {
+      ctx.lineWidth = s.width || 2.5; ctx.beginPath();
+      s.pts.forEach(([x,y],i)=>{ i ? ctx.lineTo(X(x),Y(y)) : ctx.moveTo(X(x),Y(y)); }); ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+  });
+  drawLegend(ctx, series, w-R);
+}
+function drawLegend(ctx, series, right){
+  ctx.font = '600 12px system-ui,sans-serif'; ctx.textAlign = 'left';
+  const items = series.filter(s=>s.name);
+  const total = items.reduce((a,s)=>a + ctx.measureText(s.name).width + 30, 0);
+  let lx = right - total;
+  items.forEach(s=>{ ctx.fillStyle=s.color; ctx.globalAlpha = s.alpha ?? 1; ctx.fillRect(lx, 7, 12, 9); ctx.globalAlpha = 1; ctx.fillStyle='#1b2130'; ctx.fillText(s.name, lx+16, 16); lx += ctx.measureText(s.name).width + 30; });
+}
+function barChart(cv, cats, series, o){
+  if (!cv) return;
+  const {ctx,w,h} = setupCanvas(cv);
+  const L=40, R=8, T=26, B=34, ym = o.yMax || 100;
+  const Y = y => h-B - (y/ym)*(h-T-B);
+  ctx.font='12px system-ui,sans-serif'; ctx.fillStyle='#667085'; ctx.strokeStyle='#e8eaee';
+  const bs = niceStep(ym,4);
+  for (let v=0; v<=ym+1e-9; v+=bs){ ctx.beginPath(); ctx.moveTo(L,Y(v)); ctx.lineTo(w-R,Y(v)); ctx.stroke(); ctx.textAlign='right'; ctx.fillText((Math.round(v*10)/10).toLocaleString('tr-TR')+(o.unit||''), L-5, Y(v)+4); }
+  const gw = (w-L-R)/cats.length, bw = Math.min(26, (gw-10)/Math.max(1,series.length));
+  cats.forEach((c,i)=>{
+    const gx = L + i*gw + (gw - bw*series.length)/2;
+    series.forEach((s,k)=>{ const v = s.vals[i]||0; ctx.fillStyle=s.color; ctx.fillRect(gx+k*bw, Y(v), bw-2, h-B-Y(v)); });
+    ctx.fillStyle='#1b2130'; ctx.textAlign='center'; ctx.fillText(c.length>12? c.slice(0,11)+'…' : c, L+i*gw+gw/2, h-B+15);
+  });
+  drawLegend(ctx, series, w-R);
+}
+
+/* ---------------- Yönlendirme ---------------- */
+const P = new URLSearchParams(location.search);
+
+function renderLanding(){
+  $('#app').innerHTML = `
+  <div class="landing">
+    <h1>🏭 Kanban Hat Simülasyonu</h1>
+    <p class="mut">İtme (push) ve Kanban (pull) üretim sistemlerinin karşılaştırıldığı, telefonla oynanan sınıf içi uygulama.</p>
+    <div class="grid">
+      <div class="card">
+        <h2>👩‍🏫 Eğitmen ekranı</h2>
+        <p class="mut small">Projeksiyona yansıtılacak ekran. Oyunu yönetir, QR kodunu ve sonuçları gösterir.</p>
+        <label class="small mut">Bağlantı sunucusu<br>
+          <select id="lb"><option value="A">Otomatik (tüm sunucular) — önerilen</option>${BROKERS.map((b,i)=>`<option value="${i}">Yalnızca ${i+1}. ${b.name}</option>`).join('')}<option value="L">Tek bilgisayarda test (sekmeler)</option></select>
+        </label>
+        <p><button id="goHost">Eğitmen ekranını aç</button></p>
+      </div>
+      <div class="card">
+        <h2>📱 Katılımcı</h2>
+        <p class="mut small">Normalde QR kodunu okutmanız yeterli. Elle katılmak için oda kodunu girin.</p>
+        <input id="lc" placeholder="Oda kodu (örn. K7QX)" maxlength="6" style="text-transform:uppercase;width:100%">
+        <p><button id="goPlay" class="green">Katıl</button></p>
+      </div>
+    </div>
+  </div>`;
+  $('#goHost').onclick = ()=>{ location.search = '?rol=egitmen' + ($('#lb').value!=='A' ? '&b='+$('#lb').value : ''); };
+  $('#goPlay').onclick = ()=>{ const c = $('#lc').value.trim().toUpperCase(); if (c) location.search = '?oda=' + encodeURIComponent(c) + ($('#lb').value!=='A' ? '&b='+$('#lb').value : ''); };
+}
+
+/* =====================================================================
+   EĞİTMEN (HOST) — simülasyonun sahibi
+   ===================================================================== */
+let H;
+function genCode(){ const a='ABCDEFGHJKMNPQRSTUVWXYZ23456789'; let s=''; for(let i=0;i<4;i++) s+=a[Math.floor(Math.random()*a.length)]; return s; }
+function startHost(b){
+  let code = (P.get('kod') || '').toUpperCase();
+  if (!code){ try { code = sessionStorage.getItem('kl_host_code') || ''; } catch(e){} }
+  if (!code) code = genCode();
+  try { sessionStorage.setItem('kl_host_code', code); } catch(e){}
+  H = {
+    b, code, players:{}, assign:[null,null,null,null,null,null], forceBot:[false,false,false,false,false,false],
+    settings:{n:5, mult:[1,1,2,1,1,1], round:240, K:1, mode:'push'},
+    phase:'lobby', sim:null, rounds:[], cdEnd:0, conn:{s:'wait',m:'…'}, lastPub:0, dirty:true, view:'',
+    speed:1, sBase:Date.now(), rBase:Date.now(), watch:-1, wv:null, botViz:{}
+  };
+  H.tr = createTransport(b, code, ['act','state'], hostOnMsg, (s,m)=>{ H.conn={s,m}; H.dirty=true; });
+  setInterval(hostTick, 100);
+  setInterval(hostRender, 250);
+  setInterval(updateWatch, 120);
+  window.addEventListener('resize', ()=>{ H.view=''; });
+  window.addEventListener('beforeunload', e=>{ if (H.rounds.length || H.phase==='run'){ e.preventDefault(); e.returnValue=''; } });
+  hostRender();
+}
+const now = () => Date.now();
+// Oyun saati: hız düğmeleri yalnızca bu saati hızlandırır, tüm ölçümler oyun saatiyle yapılır.
+function simNow(){ return H.sBase + (Date.now() - H.rBase) * H.speed; }
+function setSpeed(x){
+  H.sBase = simNow(); H.rBase = Date.now(); H.speed = x;
+  if (x>1 && H.sim && H.phase==='run') H.sim.accel = true;
+  H.dirty = true;
+}
+function isOnline(pid){ const p = H.players[pid]; return p && (now() - p.last) < OFFLINE_MS; }
+function isBot(j){ const pid = H.assign[j]; return H.speed>1 || H.forceBot[j] || !pid || !isOnline(pid); }
+function normalizeAssign(){
+  const n = H.settings.n;
+  for (let j=n; j<6; j++){ const pid = H.assign[j]; if (pid){ H.assign[j]=null; if (H.players[pid]) H.players[pid].st=null; } }
+  Object.values(H.players).forEach(p=>{ if (p.st==null) autoAssign(p); });
+}
+function autoAssign(p){
+  const n = H.settings.n;
+  for (let j=0;j<n;j++){ if (!H.assign[j]){ H.assign[j]=p.pid; p.st=j; return; } }
+  p.st = null; // gözlemci
+}
+function hostOnMsg(sub, m){
+  if (sub === 'state'){ if (m && m.v===1) H.lastEcho = now(); return; }
+  if (sub !== 'act' || !m || !m.pid) return;
+  let p = H.players[m.pid];
+  if (!p){
+    if (m.t !== 'hb') return;
+    p = H.players[m.pid] = {pid:m.pid, name:String(m.name||'Oyuncu').slice(0,18), last:now(), st:null};
+    if (H.phase !== 'run' && H.phase !== 'cd') autoAssign(p);
+    H.dirty = true;
+  }
+  p.last = now();
+  if (m.name && m.name !== p.name){ p.name = String(m.name).slice(0,18); H.dirty = true; }
+  const S = H.sim;
+  switch (m.t){
+    case 'view': {   // izlenen öğrencinin görev durumu (yalnızca izlenen istasyon gönderir)
+      if (H.phase==='run' && p.st!=null && p.st===m.st && m.st===H.watch){
+        const T = m.T; if (T){ if (T.slip===1) T.slip = Date.now(); else T.slip = 0; if (T.wrongT===1) T.wrongT = Date.now(); else T.wrongT = 0; }
+        H.wv = {st:m.st, T, f:m.f, at:now()};
+      }
+      break;
+    }
+    case 'claim': {
+      if (H.phase==='run' || H.phase==='cd') break;
+      const j = m.st;
+      if (j === -1){ if (p.st!=null){ H.assign[p.st]=null; p.st=null; } H.dirty=true; break; }
+      if (!(j>=0 && j<H.settings.n)) break;
+      const cur = H.assign[j];
+      if (cur && cur!==p.pid && isOnline(cur)) break;
+      if (cur && cur!==p.pid && H.players[cur]) H.players[cur].st = null;
+      if (p.st!=null) H.assign[p.st] = null;
+      H.assign[j] = p.pid; p.st = j; H.forceBot[j] = false; H.dirty = true; break;   // seçilen istasyondaki bot kalkar; bırakılan istasyon boş kalır → bot oynar
+    }
+    case 'start': {
+      if (H.phase!=='run' || !S || H.speed>1) break;
+      const j = p.st; if (j==null || j!==m.st || H.forceBot[j]) break;
+      if (canStart(S,j)) { simStart(S,j,S.cur); H.dirty=true; }
+      break;
+    }
+    case 'done': {
+      if (H.phase!=='run' || !S || H.speed>1) break;
+      const j = p.st; if (j==null || j!==m.st) break;
+      if (simDone(S,j,m.u,S.cur)) H.dirty=true;
+      break;
+    }
+  }
+}
+
+/* ---------------- Simülasyon çekirdeği ---------------- */
+// Not: simülasyon kendi saatiyle (simNow) çalışır; hız düğmeleri bu saati hızlandırır.
+function newSim(trial){
+  const s = H.settings, keys = LINES[s.n];
+  return {
+    trial:!!trial, accel:false, mode: trial ? 'push' : s.mode, K:s.K, n:s.n, mult:s.mult.slice(0,s.n),
+    bott:plannedBotts(keys, s.mult).primary, botts:plannedBotts(keys, s.mult).list,
+    dur:(trial ? 60 : s.round)*1000, keys,
+    st: keys.map((k,j)=>{ const m = s.mult[j]||1, pl = planFor(j, k, m);
+      return {key:k, mult:m, op:LIB[k].op*m, mt:0, plan:pl.v, planSrc:pl.src, job:null, busy:0, count:0, botAt:0,
+        starvedMs:0, blockedMs:0, opSum:0, opN:0, ctSum:0}; }),
+    buf: keys.map(()=>[]), maxBuf: keys.map(()=>0), nextId:1, released:0, shipped:[], wipS:[], t0:0, end:0, lastSample:0, lastT:0, cur:0
+  };
+}
+// Planlanan süre: aynı ayarla oynanmış deneme turu varsa onun ölçümü, yoksa tahmin
+function planFor(j, key, m){
+  const t = H.lastTrial, s = H.settings;
+  if (t && t.cfg && t.cfg.n===s.n && t.cfg.mult===s.mult.slice(0,s.n).join(',') && t.meas[j] > 0) return {v:t.meas[j], src:'deneme'};
+  return {v:LIB[key].op*m, src:'tahmini'};
+}
+function canStart(S,j){
+  const st = S.st[j];
+  if (st.job) return false;
+  if (j>0 && S.buf[j-1].length===0) return false;
+  if (S.mode==='kanban' && j<S.n-1 && S.buf[j].length >= S.K) return false;
+  return true;
+}
+function stStatus(S,j){
+  const st = S.st[j];
+  if (st.job) return st.job.ph==='m' ? 'manual' : 'machine';
+  if (j>0 && S.buf[j-1].length===0) return 'starved';
+  if (S.mode==='kanban' && j<S.n-1 && S.buf[j].length >= S.K) return 'blocked';
+  return 'ready';
+}
+function simStart(S,j,t){
+  const unit = j===0 ? {id:S.nextId++, rel:t} : S.buf[j-1].shift();
+  if (j===0) S.released++;
+  S.st[j].job = {u:unit, ph:'m', t, e:0, d:0, bm:0, md:0};
+}
+function simDone(S,j,uid,t){
+  const st = S.st[j], job = st.job;
+  if (!job || job.ph!=='m') return false;
+  if (uid!=null && uid!==job.u.id) return false;
+  job.ph='x'; job.md = t; job.d = st.mt * rnd(0.9,1.1) * 1000; job.e = t + job.d;
+  st.opSum += t - job.t; st.opN++;
+  return true;
+}
+function measOf(S){ return S.st.map(st=> st.count ? st.ctSum/st.count/1000 : NaN); }
+function realBott(meas, counts){ let b=-1, m=-1; meas.forEach((v,j)=>{ if (counts[j]>=2 && v>m){ m=v; b=j; } }); return b; }
+function simStep(S, t){
+  const te = Math.min(t, S.end), dt = te - S.lastT;
+  for (let j=0;j<S.n;j++){ const ss = stStatus(S,j); if (ss==='starved') S.st[j].starvedMs += dt; else if (ss==='blocked') S.st[j].blockedMs += dt; }
+  S.lastT = te;
+  let changed = false;
+  // tamamlanan makine işleri
+  for (let j=0;j<S.n;j++){
+    const st = S.st[j], job = st.job;
+    if (job && job.ph==='x' && te >= job.e){
+      st.busy += job.e - job.t; st.ctSum += job.e - job.t; st.count++;
+      if (j===S.n-1) S.shipped.push({id:job.u.id, rel:job.u.rel, ship:job.e, lt:job.e - job.u.rel});
+      else { S.buf[j].push(job.u); if (S.buf[j].length > S.maxBuf[j]) S.maxBuf[j] = S.buf[j].length; }
+      st.job = null; changed = true;
+    }
+  }
+  // botlar (operatör süresi: planlanan süre ± insan değişkenliği)
+  if (te < S.end){
+    for (let j=0;j<S.n;j++){
+      const st = S.st[j];
+      if (!isBot(j)) { st.botAt = 0; continue; }
+      if (!st.job){
+        if (canStart(S,j)){
+          if (!st.botAt) st.botAt = te + rnd(250,700);
+          else if (te >= st.botAt){ simStart(S,j,te); st.botAt = 0; changed = true; }
+        } else st.botAt = 0;
+      }
+      if (st.job && st.job.ph==='m'){
+        if (!st.job.bm) st.job.bm = te + st.op*1000*rnd(0.8,1.35);
+        if (te >= st.job.bm){ simDone(S,j,null,te); changed = true; }
+      }
+    }
+  }
+  if (te - S.lastSample >= 1000){ S.lastSample = te; S.wipS.push([(te-S.t0)/1000, S.released - S.shipped.length]); }
+  if (changed) H.dirty = true;
+  if (t >= S.end) finishRound();
+}
+function hostTick(){
+  const rt = now();
+  if (H.phase==='cd' && rt >= H.cdEnd){
+    const S = H.sim, t = simNow(); S.t0 = t; S.end = t + S.dur; S.lastT = t; S.lastSample = t; S.cur = t; S.wipS.push([0,0]);
+    H.phase='run'; H.dirty=true;
+  }
+  if (H.phase==='run'){
+    const S = H.sim, target = simNow();
+    let guard = 0;
+    // yüksek hızda bile 50 ms'lik oyun adımlarıyla ilerle → x1 ile x16 aynı sonucu verir
+    while (H.phase==='run' && S.cur < target && guard++ < 4000){ S.cur = Math.min(target, S.cur + 50); simStep(S, S.cur); }
+  }
+  const running = H.phase==='run' || H.phase==='cd';
+  if ((H.dirty && rt - H.lastPub >= 150) || rt - H.lastPub >= (running ? 450 : 1200)){
+    H.lastPub = rt; H.dirty = false;
+    try { H.tr.pub('state', hostState(), true); } catch(e){}
+  }
+}
+function finishRound(){
+  const S = H.sim, T = S.dur/1000;
+  S.st.forEach(st=>{ if (st.job){ st.busy += Math.max(0, S.end - st.job.t); } });
+  const meas = measOf(S), counts = S.st.map(st=>st.count);
+  if (S.trial){
+    H.lastTrial = {cfg:{n:S.n, mult:S.mult.join(',')}, names:S.keys.map(k=>LIB[k].name), meas, counts, op:S.st.map(st=>st.opN ? st.opSum/st.opN/1000 : NaN), realB:realBott(meas, counts), accel:S.accel};
+    H.phase = H.rounds.length ? 'res' : 'lobby'; H.view = ''; H.dirty = true;
+    if (H.speed !== 1) setSpeed(1);
+    return;
+  }
+  const sh = S.shipped, lts = sh.map(x=>x.lt/1000);
+  const avgWip = mean(S.wipS.map(x=>x[1]));
+  const th = sh.length / (T/60);
+  const last5 = mean(lts.slice(-5));
+  const stats = {
+    idx:H.rounds.length+1, mode:S.mode, K:S.K, n:S.n, bott:S.bott, botts:S.botts, mult:S.mult, T, accel:S.accel,
+    names:S.keys.map(k=>LIB[k].name),
+    shipped:sh.length, released:S.released, endWip:S.released - sh.length, avgWip, th,
+    avgLT:mean(lts), last5, maxLT:lts.length? Math.max(...lts):NaN,
+    little: th>0 ? avgWip/(th/60) : NaN,
+    util:S.st.map(st=>Math.min(100, st.busy/S.dur*100)),
+    starved:S.st.map(st=>st.starvedMs/S.dur*100), blocked:S.st.map(st=>st.blockedMs/S.dur*100),
+    wipS:S.wipS.slice(), ltS:sh.map(x=>[(x.ship-S.t0)/1000, x.lt/1000]),
+    endBuf:S.buf.map(x=>x.length), endProc:S.st.map(st=>st.job?1:0), maxBuf:S.maxBuf.slice(),
+    counts, waitPM: avgWip*T/60,
+    plan:S.st.map(st=>st.plan), planSrc:S.st.map(st=>st.planSrc), meas, opMeas:S.st.map(st=>st.opN ? st.opSum/st.opN/1000 : NaN), realB:realBott(meas, counts)
+  };
+  stats.label = 'Tur ' + stats.idx + ': ' + (S.mode==='push' ? 'İtme' : 'Kanban K=' + S.K) + (S.accel ? ' ⚡' : '');
+  H.rounds.push(stats);
+  H.phase = 'res'; H.dirty = true;
+  if (H.speed !== 1) setSpeed(1);
+  if (S.mode==='push') H.settings.mode = 'kanban';
+  // 2+ tur varsa karşılaştırma açılır: A = önceki tur, B = bu tur (seçiciden değiştirilebilir)
+  H.showCmp = H.rounds.length >= 2;   // 2+ tur varsa karşılaştırma ekranı açılır
+  H.watch = -1; H.wv = null; H.botViz = {};
+}
+function canCompare(){ return H.rounds.length >= 2; }
+function hostStartRound(trial){
+  normalizeAssign();
+  if (H.speed !== 1) setSpeed(1);   // her tur x1 ile başlar
+  H.sim = newSim(trial === true); H.phase='cd'; H.cdEnd = now()+3000; H.dirty = true;
+}
+function hostState(){
+  const t = simNow(), rt = now(), S = H.sim, live = (H.phase==='run' || H.phase==='cd') && S;
+  const n = live ? S.n : H.settings.n, keys = LINES[n];
+  const o = {v:1, now:t, sp:H.speed, ph:H.phase, n, keys, mode: live ? S.mode : H.settings.mode, K: live ? S.K : H.settings.K, bott: live ? S.bott : plannedBotts(keys, H.settings.mult).primary,
+    botts: live ? S.botts : plannedBotts(keys, H.settings.mult).list,
+    tr: live && S.trial ? 1 : 0, w: H.phase==='run' ? H.watch : -1,
+    rem: H.phase==='run' ? S.end - t : H.phase==='cd' ? H.cdEnd - rt : 0, rd: H.rounds.length + (live ? 1 : 0)};
+  o.as = keys.map((k,j)=>{
+    const pid = H.assign[j], p = pid && H.players[pid], st = live ? S.st[j] : null;
+    return {p:pid||null, pn:p ? p.name : '', bot:isBot(j), fb:H.forceBot[j],
+      j: st && st.job ? {ph:st.job.ph, u:st.job.u.id, e:st.job.e, d:st.job.d} : null,
+      c: st ? st.count : 0, m: live ? S.st[j].mult : (H.settings.mult[j]||1),
+      oa: st && st.opN ? Math.round(st.opSum/st.opN/100)/10 : null};
+  });
+  o.b = live ? S.buf.map(x=>x.length) : keys.map(()=>0);
+  if (live){
+    const lts = S.shipped.map(x=>x.lt/1000);
+    o.k = {sh:S.shipped.length, wip:S.released - S.shipped.length, lt:Math.round(mean(lts))||0, l5:Math.round(mean(lts.slice(-5)))||0};
+  }
+  o.r = H.rounds.map(r=>[r.label, r.shipped, Math.round(r.avgWip*10)/10, Math.round(r.avgLT)||0, Math.round(r.last5)||0]);
+  return o;
+}
+
+/* ---------------- Eğitmen ekranı çizimi ---------------- */
+function joinURL(){
+  const base = location.origin + location.pathname;
+  return base + '?oda=' + H.code + (H.b !== 'A' ? '&b=' + H.b : '');
+}
+function hostRender(){
+  const ph = H.phase === 'cd' ? 'run' : (H.phase==='res' && H.showCmp && canCompare()) ? 'cmp' : H.phase;
+  if (H.view !== ph){
+    H.view = ph;
+    if (ph==='lobby') hostBuildLobby();
+    else if (ph==='run') hostBuildLive();
+    else if (ph==='cmp') hostBuildCompare();
+    else hostBuildResults();
+  }
+  const echoOk = H.b==='L' || (H.lastEcho && now()-H.lastEcho < 5000);
+  const conn = $('#conn'); if (conn) setHTML(conn, `<span class="chip ${H.conn.s}">● ${esc(H.conn.m)}</span>` + (H.conn.s==='ok' ? (echoOk ? ' <span class="chip ok">✓ Yayın doğrulandı</span>' : ' <span class="chip err">✘ Yayın doğrulanamadı</span>') : ''));
+  if (ph==='lobby' || ph==='res'){ hostUpdateSlots(); }
+  if (ph==='run') hostUpdateLive();
+}
+function topBar(extra){
+  return `<div class="htop">
+    <div class="title">🏭 Kanban Hat Simülasyonu</div>
+    <span class="chip">Oda: <span class="code">${H.code}</span></span>
+    <span id="conn"></span>
+    <div class="spacer"></div>${extra||''}
+  </div>`;
+}
+function settingsHTML(){
+  const s = H.settings, keys = LINES[s.n];
+  return `<div class="settings">
+    <label>İstasyon sayısı (= öğrenci sayısı)
+      <select data-set="n">${[4,5,6].map(v=>`<option ${s.n===v?'selected':''}>${v}</option>`).join('')}</select></label>
+    <label id="kRow" style="display:${s.mode==='kanban'?'flex':'none'}">Kanban kart sayısı (K)
+      <select data-set="K">${[1,2,3,4].map(v=>`<option ${s.K===v?'selected':''}>${v}</option>`).join('')}</select></label>
+  </div>
+  <details id="adv" ${H.advOpen?'open':''} style="margin-top:10px"><summary class="small mut" style="cursor:pointer;font-weight:700">⚙️ Gelişmiş ayarlar</summary>
+    <div class="settings">
+      <label>Sonraki tur modu
+        <select data-set="mode"><option value="push" ${s.mode==='push'?'selected':''}>İtme (push)</option><option value="kanban" ${s.mode==='kanban'?'selected':''}>Kanban (pull)</option></select></label>
+      <label>Tur süresi
+        <select data-set="round">${[120,180,240,300,360].map(v=>`<option value="${v}" ${s.round===v?'selected':''}>${v/60} dakika</option>`).join('')}</select></label>
+    </div>
+  </details>`;
+}
+function bindSettings(root){
+  root.querySelectorAll('[data-set]').forEach(el=>{
+    el.onchange = ()=>{
+      const k = el.dataset.set, v = el.value;
+      H.settings[k] = (k==='mode') ? v : +v;
+      if (k==='n'){ normalizeAssign(); H.view=''; }
+      const kr = $('#kRow'); if (kr) kr.style.display = H.settings.mode==='kanban' ? 'flex' : 'none';
+      H.dirty = true;
+      const sb = $('#startBtn'); if (sb) sb.textContent = startLabel();
+    };
+  });
+  const adv = root.querySelector('#adv'); if (adv) adv.addEventListener('toggle', ()=>{ H.advOpen = adv.open; });
+}
+function startLabel(){ return '▶ Tur ' + (H.rounds.length+1) + ' başlat — ' + modeLabel(H.settings.mode, H.settings.K); }
+function trialInfo(){
+  const t = H.lastTrial; if (!t) return '';
+  const parts = t.names.map((nm,j)=>`${esc(nm)} <b>${isNaN(t.meas[j])?'—':fmt1(t.meas[j])+' sn'}</b>${j===t.realB?' 📍':''}`).join(' · ');
+  return `<div class="warn" style="background:#eef8f4;border-color:#bfe6d6;color:#11643f;margin-top:10px">✓ Deneme turu tamamlandı${t.accel?' (⚡ hızlandırıldı)':''}. Ölçülen işlem süreleri: ${parts}</div>`;
+}
+function slotsBlock(){
+  return `<div class="card" style="margin-top:12px">
+    <div class="row" style="justify-content:space-between"><h3 style="margin:0">İstasyonlar ve operatörler</h3>
+      <label class="small mut"><input type="checkbox" id="allBot" ${H.forceBot.slice(0,H.settings.n).every(x=>x)?'checked':''}> Tüm istasyonları bot oynasın (yedek / demo)</label></div>
+    <p class="small mut" style="margin:.3em 0 .6em">Boş istasyonları otomatik olarak bot oynar. Fazla katılımcılar gözlemci olur. <b>Şiddet</b> istasyonun ürün başına iş miktarını çarpar; planlanan süresi en uzun istasyon otomatik olarak <span class="bn">DARBOĞAZ</span> olur.</p>
+    <div class="slots" id="slots"></div>
+    <div id="bwarn" class="small" style="margin-top:8px;color:#7a5a00"></div>
+    <div id="obs" class="small mut" style="margin-top:8px"></div>
+  </div>`;
+}
+function bindSlots(){
+  const sl = $('#slots');
+  sl.addEventListener('click', e=>{
+    const b = e.target.closest('button[data-a]'); if (!b) return;
+    const j = +b.dataset.j;
+    if (b.dataset.a==='bot'){ H.forceBot[j] = !H.forceBot[j]; }
+    if (b.dataset.a==='kick'){ const pid = H.assign[j]; if (pid && H.players[pid]) H.players[pid].st = null; H.assign[j] = null; }
+    H.dirty = true; hostUpdateSlots();
+  });
+  sl.addEventListener('change', e=>{
+    const sel = e.target.closest('select[data-mult]'); if (!sel) return;
+    H.settings.mult[+sel.dataset.mult] = +sel.value; H.dirty = true; H.view = '';
+  });
+  $('#allBot').onchange = e=>{ for (let j=0;j<6;j++) H.forceBot[j] = e.target.checked; H.dirty=true; hostUpdateSlots(); };
+}
+function hostUpdateSlots(){
+  const sl = $('#slots'); if (!sl) return;
+  const keys = LINES[H.settings.n], pb = plannedBotts(keys, H.settings.mult);
+  setHTML(sl, keys.map((k,j)=>{
+    const pid = H.assign[j], p = pid && H.players[pid], on = pid && isOnline(pid), fb = H.forceBot[j];
+    const who = fb ? '🤖 Bot (zorunlu)' + (p ? ` <span class="mut">— ${esc(p.name)} bekliyor</span>` : '')
+      : p ? (on ? '👤 ' + esc(p.name) : '⚠️ ' + esc(p.name) + ' <span class="mut">(bağlantı yok → bot)</span>') : '🤖 <b>Bot</b> <span class="mut">(boş istasyon)</span>';
+    return `<div class="slot ${p&&!fb?'has':''} ${fb||!p?'bot':''}">
+      <div class="nm">${j+1}. ${LIB[k].icon} ${esc(LIB[k].name)} ${pb.list.includes(j)?'<span class="bn">DARBOĞAZ</span>':''}</div>
+      <div class="who">${who}</div>
+      <div class="sev small"><b>Şiddet</b> <select data-mult="${j}">${[1,2,3,4,5].map(v=>`<option value="${v}" ${(H.settings.mult[j]||1)===v?'selected':''}>×${v}</option>`).join('')}</select></div>
+      <div class="small mut">İş: <b>${workLabel(k, H.settings.mult[j]||1)}</b> · ≈${fmt1(pb.v[j])} sn/ürün</div>
+      <div class="acts" style="margin-top:6px"><button class="ghost" data-a="bot" data-j="${j}">${fb?'Botu kaldır':'Bot yap'}</button>${p?`<button class="ghost" data-a="kick" data-j="${j}">Çıkar</button>`:''}</div>
+    </div>`;
+  }).join(''));
+  setHTML($('#bwarn'), pb.list.length>1 ? `⚠️ Planlanan süreleri birbirine çok yakın istasyonlar var (${pb.list.map(j=>esc(LIB[keys[j]].name)).join(', ')}): darboğazı öğrencilerin hızı belirleyecek.` : '')
+  ;(()=>{ const w = $('#bwarn'); if (w && pb.list.includes(0)) w.innerHTML += (w.innerHTML?'<br>':'') + '⚠️ Kesim (hattın başı) en yavaş istasyon: İtme turunda stok birikmez, İtme–Kanban farkı görünmez.'; })();
+  const obs = Object.values(H.players).filter(p=>p.st==null && isOnline(p.pid));
+  setHTML($('#obs'), obs.length ? '👀 Gözlemciler: ' + obs.map(p=>esc(p.name)).join(', ') : '');
+  const ab = $('#allBot'); if (ab) ab.checked = H.forceBot.slice(0,H.settings.n).every(x=>x);
+}
+function hostBuildLobby(){
+  const url = joinURL();
+  const isFile = location.protocol === 'file:';
+  $('#app').innerHTML = `<div class="host">${topBar()}
+    <div class="lobby">
+      <div class="card qrbox">
+        <h3>📱 Telefonla katılın</h3>
+        <div id="qr"></div>
+        <div class="bigcode code">${H.code}</div>
+        <div class="small mut" style="word-break:break-all">${esc(url)}</div>
+        ${isFile?'<p class="warn">Bu sayfa bilgisayardan dosya olarak açılmış. Telefonların bağlanabilmesi için sayfayı yayınladığınız internet adresinden (ör. GitHub Pages) açın.</p>':''}
+      </div>
+      <div>
+        <div class="card">
+          <h3>Oyunun kuralları (öğrencilere okuyun)</h3>
+          <ol class="rules">
+            <li>Her telefon hattaki bir istasyondur. <b>İŞLE</b> tuşuna basınca önceki istasyondan bir parça alırsınız.</li>
+            <li>Ekranda istasyonunuza özgü işlemi yapın: <b>Kesim</b> çizgi boyunca kaydır · <b>Delme</b> basılı tut · <b>Kaynak</b> dikişi takip et · <b>Montaj</b> vidaları sürükle · <b>Kalite</b> kusurluyu bul · <b>Paketleme</b> koliye koy ve bantla.</li>
+            <li>İş bitince parça otomatik olarak sonraki istasyona gider. Makine yok: istasyonun hızını <b>sizin elleriniz</b> belirler. Planlanan darboğaz: <b>${(()=>{ const ks = LINES[H.settings.n], pb = plannedBotts(ks, H.settings.mult); return pb.list.map(j=>esc(LIB[ks[j]].name) + ' (' + workLabel(ks[j], H.settings.mult[j]||1) + ')').join(', '); })()}</b>.</li>
+            <li><span class="badge push">İTME</span> turunda kural: <b>girdi varsa hemen işle, boş durma.</b></li>
+            <li><span class="badge kanban">KANBAN</span> turunda kural: <b>yalnızca boş kanban kartın varsa üret.</b> Sonraki istasyon parçanı çekince kartın geri gelir.</li>
+            <li>Amaç her iki turda da müşteriye mümkün olduğunca çok ürün sevk etmek.</li>
+            <li>Eğitmen istasyonları 👁 ile canlı izleyebilir; izlenen telefonda "👁 Eğitmen izliyor" yazar. Yalnızca oyundaki iş alanı görünür.</li>
+          </ol>
+        </div>
+        ${slotsBlock()}
+        <div class="card" style="margin-top:12px">
+          <h3>Başlat</h3>${settingsHTML()}${trialInfo()}
+          <p class="row" style="margin-top:14px"><button id="trialBtn" class="ghost">🧪 1 dk deneme turu (sonuçlara sayılmaz)</button><button id="startBtn" class="green" style="font-size:1.15em">${startLabel()}</button></p>
+          <p class="small mut">Önerilen akış: 🧪 Deneme turu → Tur 1 İtme → Tur 2 Kanban (K=1). Herkes iki turda da aynı istasyonda kalır.</p>
+        </div>
+      </div>
+    </div></div>`;
+  if (window.QRCode){ try { new QRCode($('#qr'), {text:url, width:230, height:230, correctLevel:QRCode.CorrectLevel.M}); } catch(e){} }
+  else $('#qr').innerHTML = '<div class="small mut" style="padding:40px 10px">QR kütüphanesi yüklenemedi.<br>Adresi ya da oda kodunu kullanın.</div>';
+  bindSettings($('#app')); bindSlots();
+  $('#startBtn').onclick = ()=>hostStartRound(false);
+  $('#trialBtn').onclick = ()=>hostStartRound(true);
+}
+function speedHTML(){
+  return `<span class="spdw" title="Simülasyon hızı">⏩ ${SPEEDS.map(x=>`<button data-sp="${x}" class="${H.speed===x?'on':''}">x${x}</button>`).join('')}</span>`
+    + (H.speed>1 ? ` <span class="chip err">⚡ TEST MODU x${H.speed} — botlar oynuyor</span>` : '');
+}
+function hostBuildLive(){
+  $('#app').innerHTML = `<div class="host">${topBar(`<span id="modeB"></span><span id="spd"></span><span class="kpi" style="padding:4px 14px"><span class="l">Kalan süre</span> <span id="tleft" class="code" style="font-size:1.6em;font-weight:800"></span></span><button class="ghost" id="stopBtn">Turu bitir</button>`)}
+    <div class="kpis">
+      <div class="kpi"><div class="l">Sevk edilen ürün</div><div class="v" id="kSh">0</div><div class="s" id="kTh"></div></div>
+      <div class="kpi"><div class="l">Yarı mamul stok (WIP)</div><div class="v" id="kWip">0</div><div class="s">hatta bekleyen + işlenen</div></div>
+      <div class="kpi"><div class="l">Hatta başlatılan</div><div class="v" id="kRel">0</div><div class="s">hammadde çıkışı</div></div>
+      <div class="kpi"><div class="l">Ort. çevrim süresi</div><div class="v" id="kLt">—</div><div class="s">giriş → sevk</div></div>
+      <div class="kpi"><div class="l">Son 5 parçanın çevrim süresi</div><div class="v" id="kL5">—</div><div class="s">güncel durum</div></div>
+    </div>
+    <div class="line" id="line"></div>
+    <div class="small mut" style="margin:-6px 0 10px">Plan = deneme turunda ölçülen işlem süresi (deneme yapılmadıysa tahmini) · Ölçülen = bu turdaki gerçekleşen ortalama · 📍 = ölçüme göre en yavaş istasyon (gerçek darboğaz)</div>
+    <div class="charts2">
+      <div class="chartcard"><h3>Yarı mamul stok – zaman</h3><canvas id="cW"></canvas></div>
+      <div class="chartcard"><h3>Her ürünün çevrim süresi (sevk anına göre)</h3><canvas id="cL"></canvas></div>
+    </div>
+    <div class="cd" id="cd" style="display:none"><div style="font-size:4vh;font-weight:700" id="cdMode"></div><div class="n" id="cdN">3</div></div>
+    <div class="watch" id="watch" style="display:none"></div>
+  </div>`;
+  $('#stopBtn').onclick = ()=>{ if (H.phase==='run'){ const S = H.sim, t = Math.max(S.t0 + 1000, simNow()); S.end = t; S.dur = t - S.t0; } };
+  $('#spd').addEventListener('click', e=>{ const b = e.target.closest('button[data-sp]'); if (!b) return; setSpeed(+b.dataset.sp); });
+  $('#line').addEventListener('pointerdown', e=>{
+    const eb = e.target.closest('.eye');
+    if (eb){ const j = +eb.dataset.eye; H.watch = H.watch===j ? -1 : j; H.wv = null; H.dirty = true; return; }
+    const c = e.target.closest('.stc'); if (!c) return;
+    const j = +c.dataset.j; H.forceBot[j] = !H.forceBot[j]; H.dirty = true;
+  });
+  H.lastChart = 0;
+}
+function hostUpdateLive(){
+  const S = H.sim, rt = now(), t = simNow(); if (!S) return;
+  const cd = $('#cd');
+  const roundTag = S.trial ? '🧪 DENEME TURU · sonuçlara sayılmaz' : `Tur ${H.rounds.length+1} · ${modeLabel(S.mode,S.K)}`;
+  if (H.phase==='cd'){ cd.style.display='flex'; $('#cdN').textContent = Math.max(1, Math.ceil((H.cdEnd - rt)/1000)); $('#cdMode').innerHTML = `<span class="badge ${S.trial?'trial':S.mode}">${roundTag}</span>`; }
+  else cd.style.display='none';
+  setHTML($('#modeB'), `<span class="badge ${S.trial?'trial':S.mode}" style="font-size:1.1em">${roundTag}</span>`);
+  setHTML($('#spd'), speedHTML());
+  const tn = H.phase==='run' ? Math.min(t, S.end) : S.t0;
+  $('#tleft').textContent = H.phase==='run' ? fmtClock(S.end - t) : fmtClock(S.dur);
+  const el = H.phase==='run' ? (tn - S.t0)/1000 : 0;
+  const lts = S.shipped.map(x=>x.lt/1000);
+  $('#kSh').textContent = S.shipped.length;
+  $('#kTh').textContent = el>20 ? fmt1(S.shipped.length/(el/60)) + ' adet/dk' : '';
+  $('#kWip').textContent = S.released - S.shipped.length;
+  $('#kRel').textContent = S.released;
+  $('#kLt').textContent = lts.length ? Math.round(mean(lts)) + ' sn' : '—';
+  $('#kL5').textContent = lts.length ? Math.round(mean(lts.slice(-5))) + ' sn' : '—';
+  const meas = measOf(S), rb = realBott(meas, S.st.map(s=>s.count));
+  // hat diyagramı
+  let h = `<div class="endcap"><div style="font-size:1.8em">🏗️</div>Hammadde<div class="mut small">sınırsız</div></div><div class="buf"><div class="ar">→</div></div>`;
+  for (let j=0;j<S.n;j++){
+    const st = S.st[j], ss = stStatus(S,j), pid = H.assign[j], p = pid && H.players[pid];
+    const cls = (ss==='manual'||ss==='machine') ? 's-work' : ss==='starved' ? 's-starved' : ss==='blocked' ? 's-blocked' : '';
+    const stt = {manual:'✋ Operatör işliyor', machine:'⚙️ Makine çalışıyor', starved:'⏳ Girdi bekliyor (aç)', blocked:'🟦 Kart bekliyor (bloke)', ready:'● Hazır'}[ss];
+    let pw = 0, pcls = '';
+    if (st.job){ if (st.job.ph==='m') pcls='manual'; else pw = st.job.d > 0 ? Math.min(100, (tn - (st.job.e - st.job.d))/st.job.d*100) : 100; }
+    const op = isBot(j) ? '🤖 Bot' + (H.speed>1 && p ? ' ⚡' : '') : '👤 ' + esc(p ? p.name : '');
+    let cards = '';
+    if (S.mode==='kanban' && j<S.n-1){
+      const used = S.buf[j].length + (st.job?1:0);
+      cards = `<div class="cards">Kart:${Array.from({length:S.K},(_,i)=>`<b class="${i<used?'u':''}"></b>`).join('')}</div>`;
+    }
+    const ms = meas[j];
+    h += `<div class="stc ${cls}" data-j="${j}" title="Tıkla: bot aç/kapat">
+      <div class="sth"><button class="eye ${H.watch===j?'on':''}" data-eye="${j}" title="Canlı izle">👁</button>${LIB[st.key].icon} ${esc(LIB[st.key].name)} ${S.botts.includes(j)?'<span class="bn">DARBOĞAZ</span>':''} ${j===rb?'<span class="rb">📍 GERÇEK</span>':''}</div>
+      <div class="op">${op}</div>
+      <div class="pt">İş: <b>${workLabel(st.key, st.mult)}</b>${st.mult>1?' <span class="mut">(×'+st.mult+')</span>':''}</div>
+      <div class="pt">Plan: <b>${fmt1(st.plan)} sn</b> <span class="mut">(${st.planSrc})</span></div>
+      <div class="pt">Ölçülen: <b class="${j===rb?'rbt':''}">${isNaN(ms)?'—':fmt1(ms)+' sn'}</b></div>
+      <div class="pbar ${pcls}" style="margin-top:5px"><i style="width:${pw}%"></i></div>
+      <div class="stt">${stt}</div><div class="cnt">İşlenen: ${st.count}</div>${cards}</div>`;
+    if (j<S.n-1){
+      const q = S.buf[j].length, show = Math.min(q, 40);
+      h += `<div class="buf"><div class="n ${q>=6?'hot':''}">${q}</div><div class="stack">${'<i></i>'.repeat(show)}</div>${q>40?'<div class="small mut">+'+(q-40)+'</div>':''}<div class="ar">→</div></div>`;
+    }
+  }
+  h += `<div class="buf"><div class="ar">→</div></div><div class="endcap"><div style="font-size:1.8em">🚚</div>Müşteri<div class="big">${S.shipped.length}</div></div>`;
+  setHTML($('#line'), h);
+  // grafikler (gerçek zamanla saniyede bir)
+  if (rt - (H.lastChart||0) > 1000){
+    H.lastChart = rt;
+    const xMax = S.dur/1000;
+    const wS = H.rounds.map((r,i)=>({name:r.label, color:ROUND_COLORS[i%6], alpha:.35, pts:r.wipS, width:2}));
+    wS.push({name:'Şu an', color:S.trial?'#6b4fc4':ROUND_COLORS[H.rounds.length%6], pts:S.wipS, width:3.5});
+    lineChart($('#cW'), wS, {xMax, xLabel:'zaman (sn)', yLabel:'adet'});
+    const lS = H.rounds.map((r,i)=>({name:r.label, color:ROUND_COLORS[i%6], alpha:.3, pts:r.ltS, dots:true}));
+    lS.push({name:'Şu an', color:S.trial?'#6b4fc4':ROUND_COLORS[H.rounds.length%6], pts:S.shipped.map(x=>[(x.ship-S.t0)/1000, x.lt/1000]), dots:true});
+    lineChart($('#cL'), lS, {xMax, xLabel:'sevk anı (sn)', yLabel:'çevrim süresi (sn)'});
+  }
+}
+function hostBuildResults(){
+  const R = H.rounds;
+  const rows = [
+    ['Sevk edilen ürün (adet)', r=>r.shipped, true],
+    ['Çıktı hızı (adet/dk)', r=>fmt1(r.th)],
+    ['Hatta başlatılan parça (adet)', r=>r.released],
+    ['Tur sonu yarı mamul stok (adet)', r=>r.endWip, true],
+    ['Ortalama yarı mamul stok (adet)', r=>fmt1(r.avgWip), true],
+    ['Ortalama çevrim süresi (sn)', r=>fmtSec(r.avgLT)],
+    ['Son 5 ürünün çevrim süresi (sn)', r=>fmtSec(r.last5), true],
+    ['En uzun çevrim süresi (sn)', r=>fmtSec(r.maxLT)],
+    ['Little Yasası ile çevrim süresi = Ort. WIP ÷ çıktı hızı (sn)', r=>fmtSec(r.little)],
+    ['Gerçek darboğaz (ölçülen en uzun işlem süresi)', r=>r.realB>=0 ? esc(r.names[r.realB]) + ' · ' + fmt1(r.meas[r.realB]) + ' sn' : '—'],
+    ['Darboğaz kullanım oranı (%)', r=>Math.round(r.util[r.bott])+'%'],
+    ['Diğer istasyonların ort. kullanım oranı (%)', r=>Math.round(mean(r.util.filter((_,i)=>i!==r.bott)))+'%']
+  ];
+  $('#app').innerHTML = `<div class="host">${topBar((canCompare()?'<button class="green" id="cmpBtn">📊 Turları karşılaştır</button>':'') + '<button class="ghost" id="resetBtn">Sonuçları sıfırla</button>')}
+    <div class="card" style="margin-bottom:12px;overflow-x:auto">
+      <table class="tbl"><thead><tr><th>Gösterge</th>${R.map((r,i)=>`<th style="color:${ROUND_COLORS[i%6]}">${esc(r.label)}</th>`).join('')}</tr></thead>
+      <tbody>${rows.map(([l,f,key])=>`<tr class="${key?'key':''}"><td>${l}</td>${R.map(r=>`<td>${f(r)}</td>`).join('')}</tr>`).join('')}</tbody></table>
+    </div>
+    ${R.some(r=>r.accel)?'<p class="warn" style="margin-bottom:12px">⚡ işaretli turlar hızlandırılarak (test modunda, botlarla) oynandı.</p>':''}
+    <div class="charts2">
+      <div class="chartcard"><h3>Yarı mamul stok – zaman</h3><canvas id="rW"></canvas></div>
+      <div class="chartcard"><h3>Her ürünün çevrim süresi</h3><canvas id="rL"></canvas></div>
+      <div class="chartcard"><h3>İstasyon kullanım oranları (%)</h3><canvas id="rU"></canvas></div>
+      <div class="chartcard"><h3>İşlem süresi: plan ↔ ölçülen (sn)</h3><canvas id="rT"></canvas></div>
+    </div>
+    <div style="margin-top:12px">
+      <div>
+        ${slotsBlock()}
+        <div class="card" style="margin-top:12px"><h3>Sonraki tur</h3>${settingsHTML()}
+          <p style="margin-top:14px"><button id="startBtn" class="green" style="font-size:1.15em">${startLabel()}</button></p></div>
+      </div>
+    </div>`;
+  bindSettings($('#app')); bindSlots();
+  $('#startBtn').onclick = ()=>hostStartRound(false);
+  if ($('#cmpBtn')) $('#cmpBtn').onclick = ()=>{ H.showCmp = true; H.view = ''; };
+  $('#resetBtn').onclick = ()=>{ if (H._rc && now()-H._rc<3000){ H.rounds=[]; H.settings.mode='push'; H.showCmp=false; H.cmpBase=null; H.phase='lobby'; H.view=''; H.dirty=true; } else { H._rc = now(); $('#resetBtn').textContent='Emin misiniz? Tekrar tıklayın'; } };
+  requestAnimationFrame(()=>{
+    const xMax = Math.max(...R.map(r=>r.T));
+    lineChart($('#rW'), R.map((r,i)=>({name:r.label, color:ROUND_COLORS[i%6], pts:r.wipS})), {xMax, xLabel:'zaman (sn)', yLabel:'adet'});
+    lineChart($('#rL'), R.map((r,i)=>({name:r.label, color:ROUND_COLORS[i%6], pts:r.ltS, dots:true})), {xMax, xLabel:'sevk anı (sn)', yLabel:'sn'});
+    barChart($('#rU'), R[R.length-1].names, R.map((r,i)=>({name:r.label, color:ROUND_COLORS[i%6], vals:r.util})), {yMax:100, unit:'%'});
+    const lastR = R[R.length-1], tS = [{name:'Plan', color:'#9aa3ad', vals:lastR.plan}].concat(R.map((r,i)=>({name:r.label, color:ROUND_COLORS[i%6], vals:r.meas.map(v=>isNaN(v)?0:v)})));
+    barChart($('#rT'), lastR.names, tS, {yMax:niceMax(Math.max(...tS.flatMap(x=>x.vals))*1.05), unit:''});
+  });
+}
+
+
+/* ---------------- 👁 Canlı istasyon izleme (eğitmen) ---------------- */
+function statusSVG(icon, l1, l2){ return `<rect x="4" y="4" width="312" height="222" rx="14" fill="#f6f7f9" stroke="#e2e5ea"/><text x="160" y="100" text-anchor="middle" font-size="44">${icon}</text><text x="160" y="142" text-anchor="middle" font-size="16" font-weight="800" fill="#1b2130">${l1}</text><text x="160" y="166" text-anchor="middle" font-size="12" fill="#667085">${l2||''}</text>`; }
+function applyBotProgress(T, g){
+  if (T.type==='cut'){ T.prog = g; T.active = true; }
+  else if (T.type==='hold'){ const n = T.pts.length, x = g*n; T.cur = Math.min(n-1, Math.floor(x)); T.fill = x - T.cur; T.hs = 1; }
+  else if (T.type==='trace'){ T.i = Math.floor(g*(T.samp.length-1)); T.active = true; }
+  else if (T.type==='drag'){
+    const x = g*3; T.holes.forEach(h=>h.f=false);
+    T.sc.forEach((s,k)=>{ const h = T.holes[k], loc = x - k;
+      if (loc >= 1){ s.x=h.x; s.y=h.y; s.h=k; s.tight=true; h.f=true; }
+      else if (loc > 0){ const q = Math.min(1, loc/0.7); s.x = s.hx+(h.x-s.hx)*q; s.y = s.hy+(h.y-s.hy)*q; s.h = loc>=0.7 ? k : -1; s.tight = loc>=0.9; if (loc>=0.7) h.f = true; }
+      else { s.x=s.hx; s.y=s.hy; s.h=-1; s.tight=false; } });
+  }
+  else if (T.type==='inspect'){ T.found = g > 0.85; }
+  else if (T.type==='pack'){
+    if (g < 0.4){ T.step='drag'; const q = g/0.4; T.px = T.hx+(242-T.hx)*q; T.py = T.hy+(158-T.hy)*q; }
+    else if (g < 0.85){ T.step='tape'; T.px=242; T.py=158; T.prog = (g-0.4)/0.45; T.active = true; }
+    else { T.step='label'; T.labeled = g > 0.95; }
+  }
+}
+function botVizTask(S, j, t){
+  const st = S.st[j], job = st.job;
+  let v = H.botViz[j];
+  if (!v || v.u !== job.u.id) v = H.botViz[j] = {u:job.u.id, T:newTask(st.key, 'b', st.mult)};
+  const T = v.T, dur = Math.max(300, (job.bm || (t+1000)) - job.t);
+  const f = Math.max(0, Math.min(0.999, (t - job.t)/dur));
+  const sf = f * T.stages, si = Math.min(T.stages-1, Math.floor(sf));
+  if (T.stage !== si){ T.stage = si; initStage(T); }
+  applyBotProgress(T, sf - si);
+  return T;
+}
+function updateWatch(){
+  if (!H) return;
+  const el = $('#watch'); if (!el) return;
+  const S = H.sim, j = H.watch;
+  if (H.phase!=='run' || !S || j<0 || j>=S.n){ if (el.style.display!=='none'){ el.style.display='none'; el._k=''; } return; }
+  el.style.display = 'block';
+  const st = S.st[j], L = LIB[st.key], pid = H.assign[j], p = pid && H.players[pid], bot = isBot(j);
+  if (el._k !== 'w'+j){
+    el._k = 'w'+j;
+    el.innerHTML = `<div class="wh"><b>👁 ${j+1}. ${L.icon} ${esc(L.name)}</b><span id="wwho"></span><button class="ghost" id="wclose">✕</button></div><svg id="wsvg" viewBox="0 0 320 230"></svg><div id="winfo" class="small"></div>`;
+    $('#wclose').onclick = ()=>{ H.watch = -1; H.wv = null; H.dirty = true; };
+  }
+  const t = simNow(), ss = stStatus(S,j);
+  let T = null, live = false;
+  if (st.job && st.job.ph==='m'){
+    if (bot) T = botVizTask(S, j, t);
+    else if (H.wv && H.wv.st===j && now()-H.wv.at < 2500 && H.wv.T){ T = H.wv.T; if (T.type==='trace' && !T.samp && T.path) T.samp = sampleLine(T.path, 4); live = true; }
+  }
+  setHTML($('#wwho'), bot ? '🤖 Bot (canlandırma)' : '👤 ' + esc(p ? p.name : '') + (live ? ' · <span style="color:#2e9e5b">● canlı</span>' : ''));
+  const svg = $('#wsvg');
+  if (T){
+    const f = live && H.wv.f;
+    svg.innerHTML = taskSVG(T) + (f ? `<circle cx="${f.x}" cy="${f.y}" r="${f.d?17:11}" fill="${f.d?'rgba(58,123,213,.35)':'rgba(58,123,213,.12)'}" stroke="#3a7bd5" stroke-width="2"/>` : '');
+  } else {
+    const m = {ready:['●', bot?'Bot parça almak üzere':'İŞLE\'ye basması bekleniyor', 'Girdi hazır'],
+      starved:['⏳','Girdi bekliyor (aç)','Önceki istasyondan parça gelmedi'],
+      blocked:['🟦','Kanban kartı bekliyor','Sonraki istasyon parçayı çekmedi'],
+      machine:['✅','Parça gönderiliyor',''],
+      manual:['📡','Görüntü bekleniyor…','Telefon bağlantısı yavaş olabilir']}[ss] || ['…','',''];
+    svg.innerHTML = statusSVG(m[0], m[1], m[2]);
+  }
+  const el2 = st.job ? (t - st.job.t)/1000 : NaN, meas = st.count ? st.ctSum/st.count/1000 : NaN;
+  setHTML($('#winfo'), `${T ? '<b>' + taskStatus(T) + '</b><br>' : ''}Bu parçada geçen: <b>${isNaN(el2)?'—':fmt1(el2)+' sn'}</b> · plan ${fmt1(st.plan)} sn · ölçülen ort. ${isNaN(meas)?'—':fmt1(meas)+' sn'} · işlenen ${st.count}`);
+}
+
+/* ---------------- Tur karşılaştırma ekranı (tüm turlar) ---------------- */
+const rColor = i => ROUND_COLORS[i % 6];
+const shortLbl = r => r.mode==='push' ? 'İTME' : 'K=' + r.K;
+const littleOf = r => r.th/60*r.avgLT;
+const littleOk = r => r.avgWip>0 && littleOf(r)>0 && Math.abs(littleOf(r)-r.avgWip)/r.avgWip <= 0.3;
+const othersUtil = r => mean(r.util.filter((_,i)=>i!==r.bott));
+const maxQ = r => { let m=-1, at=0; r.maxBuf.forEach((v,j)=>{ if (v>m){ m=v; at=j; } }); return {m, at}; };
+function snapHTML(r, color, tag){
+  let h = `<div class="snap" style="background:${color}12;border:1px solid ${color}55"><div class="tag" style="background:${color}">${esc(tag)}</div><div class="end">🏗️<br>Hammadde</div>`;
+  for (let j=0;j<r.n;j++){
+    h += `<div class="sn ${j===r.bott?'bt':''}">${esc(r.names[j])}${j===r.bott?'<br><span class="bn">DARBOĞAZ</span>':''}<br><span class="mut">işlenen ${r.counts[j]}</span></div>`;
+    if (j<r.n-1){
+      const q = r.endBuf[j], show = Math.min(q, 60);
+      h += `<div class="pile"><div class="n ${q>=6?'hot':''}">${q}</div><div class="st">${'<i></i>'.repeat(show)}</div></div>`;
+    }
+  }
+  h += `<div class="end">🚚<br>Müşteri<b>${r.shipped}</b></div></div>`;
+  return h;
+}
+const CMP_ROWS = [
+  ['Sevk edilen ürün', 'adet', r=>r.shipped, 'same', 0],
+  ['Çıktı hızı', 'adet/dk', r=>r.th, 'same', 1],
+  ['Hatta başlatılan parça', 'adet', r=>r.released, 'low', 0],
+  ['Ortalama yarı mamul stok (WIP)', 'adet', r=>r.avgWip, 'low', 1],
+  ['Tur sonunda hatta kalan stok', 'adet', r=>r.endWip, 'low', 0],
+  ['En kalabalık ara stok', 'adet', r=>maxQ(r).m, 'low', 0],
+  ['Ortalama çevrim süresi', 'sn', r=>r.avgLT, 'low', 0],
+  ['Son 5 ürünün çevrim süresi', 'sn', r=>r.last5, 'low', 0],
+  ['En uzun çevrim süresi', 'sn', r=>r.maxLT, 'low', 0],
+  ['Bekleme yükü (stok × süre)', 'parça·dk', r=>r.waitPM, 'low', 0],
+  ['Little: çıktı hızı × çevrim süresi', 'adet', r=>littleOf(r), 'info', 1],
+  ['Darboğaz kullanım oranı', '%', r=>r.util[r.bott], 'same', 0],
+  ['Diğer istasyonların kullanım oranı', '%', r=>othersUtil(r), 'info', 0],
+  ['Gerçek darboğaz işlem süresi', 'sn', r=>r.realB>=0 ? r.meas[r.realB] : NaN, 'info', 1]
+];
+const fv = (v,d)=> (v==null||isNaN(v)) ? '—' : (d ? fmt1(v) : Math.round(v).toLocaleString('tr-TR'));
+function settingsDiff(A,B){
+  const d = [];
+  if (A.n!==B.n) d.push(`istasyon sayısı ${A.n} ↔ ${B.n}`);
+  if ((A.mult||[]).join()!==(B.mult||[]).join()) d.push(`şiddetler: ${multStr(A.names, A.mult||[])} ↔ ${multStr(B.names, B.mult||[])}`);
+  if (Math.abs(A.T-B.T) > 1) d.push(`tur süresi ${fmt1(A.T/60)} ↔ ${fmt1(B.T/60)} dk`);
+  return d;
+}
+// kıyas turuna göre değişim etiketi
+function deltaTxt(v, bv, kind){
+  if (!(bv>0) || isNaN(v)) return {t:'', c:''};
+  const x = (v-bv)/bv*100;
+  if (Math.abs(x) < 3) return {t:'≈', c:''};
+  return {t:(x<0?'▼ %':'▲ %')+Math.abs(Math.round(x)), c: kind==='low' ? (x<0?'good':'bad') : ''};
+}
+function sumCard(icon, title, fn, unit, kind, d, note){
+  const R = H.rounds, base = R[H.cmpBase];
+  const rows = R.map((r,i)=>{
+    const v = fn(r), dl = r===base ? {t:'kıyas', c:'mut'} : deltaTxt(v, fn(base), kind);
+    return `<div class="rv"><span class="dot" style="background:${rColor(i)}"></span><span class="lb">${esc(shortLbl(r))}${r.accel?' ⚡':''}</span><span class="v">${fv(v,d)}<small> ${unit}</small></span><span class="dl ${dl.c}">${dl.t}</span></div>`;
+  }).join('');
+  return `<div class="hcard"><div class="l">${icon} ${title}</div>${rows}<div class="note">${note}</div></div>`;
+}
+function hostBuildCompare(){
+  const R = H.rounds;
+  if (H.cmpBase==null || !R[H.cmpBase]) H.cmpBase = 0;
+  const base = R[H.cmpBase];
+  const cell = (r, fn, kind, d) => {
+    const v = fn(r), dl = r===base ? {t:'',c:''} : deltaTxt(v, fn(base), kind);
+    return `<td style="background:${rColor(R.indexOf(r))}14;font-weight:700">${fv(v,d)}${dl.t?`<div class="dl ${dl.c}">${dl.t}</div>`:''}</td>`;
+  };
+  const diffs = R.filter(r=>r!==base && settingsDiff(base, r).length);
+  const notes = [];
+  if (diffs.length) notes.push('⚠️ Bazı turlar farklı ayarlarla oynandı: ' + diffs.map(r=>esc(r.label)+' ('+settingsDiff(base,r).map(esc).join(', ')+')').join(' · '));
+  if (R.some(r=>r.accel)) notes.push('⚡ işaretli turlar hızlandırılarak (botlarla) oynandı.');
+  $('#app').innerHTML = `<div class="host">${topBar(`<button class="ghost" id="fsBtn">⛶ Tam ekran</button><button class="ghost" id="backBtn">← Sonuçlar ve sonraki tur</button>`)}
+    <div class="cmpT">Turların karşılaştırması
+      <small>Değişimler kıyas turuna göre gösterilir. Kıyas turu: <select id="selBase">${R.map((r,i)=>`<option value="${i}" ${i===H.cmpBase?'selected':''}>${esc(r.label)}</option>`).join('')}</select>
+      · Darboğaz: ${esc(base.names[base.bott])} · şiddetler: ${esc(multStr(base.names, base.mult||[]))} · ${fmt1(base.T/60)} dk</small></div>
+    ${notes.length ? `<p class="warn" style="margin:0 0 12px">${notes.join('<br>')}</p>` : ''}
+    <div class="heads">
+      ${sumCard('📦','Müşteriye sevk edilen', r=>r.shipped, 'adet', 'same', 0, 'Çıktıyı darboğaz belirler')}
+      ${sumCard('🏭','Ortalama yarı mamul stok', r=>r.avgWip, 'adet', 'low', 1, 'Hatta bekleyen + işlenen parçalar')}
+      ${sumCard('⏱️','Çevrim süresi (son 5 ürün)', r=>r.last5, 'sn', 'low', 0, 'Bir parçanın girişten sevke kadar geçen süresi')}
+      ${sumCard('💤','Bekleme yükü (stok × süre)', r=>r.waitPM, 'parça·dk', 'low', 0, 'Bağlanan sermaye / stok taşıma maliyeti göstergesi')}
+    </div>
+    <div class="cmpgrid">
+      <div class="card" style="overflow-x:auto">
+        <table class="ctbl"><thead><tr><th>Gösterge</th>${R.map((r,i)=>`<th style="background:${rColor(i)};color:#fff;border-radius:8px 8px 0 0">${esc(r.label)}${i===H.cmpBase?' ★':''}</th>`).join('')}</tr></thead>
+        <tbody>${CMP_ROWS.map(([l,u,fn,kind,d])=>`<tr><td>${l} <span class="mut small">(${u})</span></td>${R.map(r=>cell(r,fn,kind,d)).join('')}</tr>`).join('')}
+          <tr><td>Little Yasası tutuyor mu? <span class="mut small">(WIP ≈ çıktı hızı × çevrim süresi)</span></td>${R.map((r,i)=>`<td style="background:${rColor(i)}14;font-weight:800">${littleOk(r)?'✔ kararlı':'✘ stok büyüyor'}</td>`).join('')}</tr></tbody></table>
+      </div>
+      <div class="card snapwrap"><h3>Tur bittiğinde stok nerede bekliyordu?</h3>${R.map((r,i)=>snapHTML(r, rColor(i), shortLbl(r))).join('')}
+        <div class="small mut">Kutular: istasyonlar arasında bir sonraki işlemi bekleyen yarı mamuller.</div></div>
+    </div>
+    <div class="charts2">
+      <div class="chartcard"><h3>Yarı mamul stok – zaman</h3><canvas id="xW"></canvas></div>
+      <div class="chartcard"><h3>Her ürünün çevrim süresi (sevk anına göre)</h3><canvas id="xL"></canvas></div>
+      <div class="chartcard"><h3>İstasyon kullanım oranları (%)</h3><canvas id="xU"></canvas></div>
+      <div class="chartcard"><h3>İşlem süresi: plan ↔ ölçülen (sn)</h3><canvas id="xT"></canvas></div>
+    </div>
+  </div>`;
+  $('#backBtn').onclick = ()=>{ H.showCmp = false; };
+  $('#fsBtn').onclick = ()=>{ try { const d = document.documentElement; (document.fullscreenElement ? document.exitFullscreen() : d.requestFullscreen()).catch(()=>{}); } catch(e){} };
+  $('#selBase').onchange = e=>{ H.cmpBase = +e.target.value; H.view=''; };
+  requestAnimationFrame(()=>{
+    const xMax = Math.max(...R.map(r=>r.T));
+    lineChart($('#xW'), R.map((r,i)=>({name:shortLbl(r), color:rColor(i), pts:r.wipS})), {xMax, xLabel:'zaman (sn)', yLabel:'adet'});
+    lineChart($('#xL'), R.map((r,i)=>({name:shortLbl(r), color:rColor(i), pts:r.ltS, dots:true})), {xMax, xLabel:'sevk anı (sn)', yLabel:'sn'});
+    barChart($('#xU'), base.names, R.map((r,i)=>({name:shortLbl(r), color:rColor(i), vals:r.util})), {yMax:100, unit:'%'});
+    const tS = [{name:'Plan', color:'#9aa3ad', vals:base.plan}].concat(R.map((r,i)=>({name:shortLbl(r), color:rColor(i), vals:r.meas.map(v=>isNaN(v)?0:v)})));
+    barChart($('#xT'), base.names, tS, {yMax:niceMax(Math.max(...tS.flatMap(x=>x.vals))*1.05), unit:''});
+  });
+}
+
+/* =====================================================================
+   KATILIMCI (telefon)
+   ===================================================================== */
+let G;
+function getPid(){
+  let p = null;
+  try { p = sessionStorage.getItem('kl_pid'); } catch(e){}
+  if (!p){ p = 'p' + Math.random().toString(36).slice(2,9); try { sessionStorage.setItem('kl_pid', p); } catch(e){} }
+  return p;
+}
+function startPlayer(code, b){
+  G = {code, b, pid:getPid(), name:store.get('kl_name')||'', S:null, recvAt:0, conn:{s:'wait',m:'…'}, view:'', task:null, pending:0, startSent:0};
+  if (!G.name) return renderNameForm();
+  playerConnect();
+}
+function renderNameForm(){
+  $('#app').innerHTML = `<div class="ph"><h2>🏭 Kanban Hattı</h2><p class="mut">Oda: <b class="code">${esc(G.code)}</b></p>
+    <div class="card"><label>Adınız<br><input id="nm" maxlength="18" style="width:100%;font-size:1.2em" placeholder="Örn. Ayşe (ilk adın ya da takma ad)" value="${esc(G.name)}"></label>
+    <p><button id="ok" class="green" style="width:100%;font-size:1.2em;padding:.8em">Katıl</button></p></div></div>`;
+  const go = ()=>{ const v = $('#nm').value.trim(); if (!v) return $('#nm').focus(); G.name = v.slice(0,18); store.set('kl_name', G.name); playerConnect(); };
+  $('#ok').onclick = go; $('#nm').onkeydown = e=>{ if (e.key==='Enter') go(); };
+}
+function playerSend(o){ o.pid = G.pid; if (G.tr) G.tr.pub('act', o); }
+function playerConnect(){
+  G.tr = createTransport(G.b, G.code, ['state'], (sub,o)=>{
+    if (sub!=='state' || !o || o.v!==1) return;
+    if (G.S && o.now < G.S.now && G.S.now - o.now < 60000) return; // aynı durumun başka sunucudan gelen eski kopyası
+    G.S = o; G.recvAt = Date.now(); playerRender();
+  }, (s,m)=>{ if (s==='ok' && G.conn.s!=='ok') G.okSince = Date.now(); G.conn={s,m}; playerRender(); if (s==='ok') playerSend({t:'hb', name:G.name}); });
+  setInterval(()=>playerSend({t:'hb', name:G.name}), 2500);
+  setInterval(playerTick, 100);
+  setInterval(()=>{ if (!G.S) playerRender(); }, 2000);
+  try { if (navigator.wakeLock) navigator.wakeLock.request('screen').catch(()=>{}); } catch(e){}
+  document.addEventListener('visibilitychange', ()=>{ if (document.visibilityState==='visible'){ try { navigator.wakeLock && navigator.wakeLock.request('screen').catch(()=>{}); } catch(e){} playerSend({t:'hb', name:G.name}); } });
+  playerRender();
+}
+const hostNowEst = () => G.S ? G.S.now + (Date.now() - G.recvAt) * (G.S.sp || 1) : Date.now();
+function remNow(o){ return o.rem - (Date.now() - G.recvAt) * (o.ph==='run' ? (o.sp || 1) : 1); }
+function myIdx(){ return G.S ? G.S.as.findIndex(a=>a.p===G.pid) : -1; }
+function pCanStart(o,j){
+  if (o.as[j].j) return 'busy';
+  if (j>0 && o.b[j-1]===0) return 'starved';
+  if (o.mode==='kanban' && j<o.n-1 && o.b[j] >= o.K) return 'blocked';
+  return 'ready';
+}
+function vib(ms){ try { navigator.vibrate && navigator.vibrate(ms); } catch(_){} }
+function playerRender(){
+  const app = $('#app'), o = G.S;
+  if (!o){
+    setHTML(app, `<div class="ph"><h2>🏭 Kanban Hattı</h2><p>Merhaba <b>${esc(G.name)}</b> 👋</p>
+      <div class="waitbox info"><span class="ico">📡</span>Eğitmen ekranına bağlanılıyor…<br><span class="chip ${G.conn.s}" style="margin-top:8px">${esc(G.conn.m)}</span>
+      <p class="small mut">Oda: ${esc(G.code)}</p>
+      ${G.conn.s==='ok' && G.okSince && Date.now()-G.okSince > 6000 ? `<div class="warn" style="text-align:left;margin-top:8px">Sunucuya bağlandın ama eğitmen ekranından veri gelmiyor. Kontrol et:<br>• Eğitmen ekranı açık ve ön planda mı?<br>• Projeksiyondaki oda kodu <b>${esc(G.code)}</b> mi?<br>• Eğitmen ekranının üstünde <b>"✓ Yayın doğrulandı"</b> yazıyor mu?</div>` : ''}</div></div>`);
+    G.view = ''; return;
+  }
+  const me = myIdx();
+  const view = o.ph + '|' + (me>=0 ? 's' : 'o');
+  if (G.view !== view){ G.view = view; G.mainKey = ''; buildPlayerShell(); }
+  updatePlayer();
+}
+function buildPlayerShell(){
+  const o = G.S, me = myIdx(), app = $('#app');
+  app._h = null; G.task = null; G.pending = 0;
+  if (o.ph==='lobby' || o.ph==='res'){
+    app.innerHTML = `<div class="ph"><div class="phead"><div class="st">🏭 Kanban Hattı</div><span class="chip" id="pc"></span></div>
+      <div id="lobbyTop"></div>
+      <h3 style="margin:.6em 0 .3em">İstasyon seç</h3><div class="plist" id="plist"></div>
+      <div id="pres" style="margin-top:12px"></div></div>`;
+    $('#plist').addEventListener('click', e=>{ const b = e.target.closest('button[data-j]'); if (!b || b.disabled) return; playerSend({t:'claim', st:+b.dataset.j}); });
+    return;
+  }
+  if (me < 0){ // gözlemci
+    app.innerHTML = `<div class="ph"><div class="phead"><div class="st">👀 Gözlemci</div><span class="tm" id="ptm"></span></div>
+      <div id="prule"></div><div class="pk" id="pk"></div><div class="plist" id="pst" style="margin-top:10px"></div></div>`;
+    return;
+  }
+  app.innerHTML = `<div class="ph">
+    <div class="phead"><div class="st" id="pst"></div><span id="pw"></span><span class="tm" id="ptm"></span></div>
+    <div id="prule"></div>
+    <div class="pio"><div class="box" id="pin"></div><div class="box" id="pout"></div></div>
+    <div class="pmain" id="pmain"></div>
+    <div class="pfoot"><span id="pcount"></span><span id="pconn"></span></div>
+  </div>
+  <div class="cd" id="pcd" style="display:none"><div id="pcdm" style="font-size:6vw;font-weight:800;text-align:center;padding:0 10px"></div><div class="cdp" id="pcdn"></div></div>`;
+  $('#pmain').addEventListener('pointerdown', onMainPointer);
+}
+function updatePlayer(){
+  const o = G.S, me = myIdx();
+  if (o.ph==='lobby' || o.ph==='res'){
+    setHTML($('#pc'), `<span class="chip ${G.conn.s}">● ${esc(G.conn.m)}</span>`);
+    const mine = me>=0 ? o.keys[me] : null;
+    setHTML($('#lobbyTop'), `<div class="card"><div>Merhaba <b>${esc(G.name)}</b> 👋</div>
+      ${mine ? `<div style="font-size:1.3em;font-weight:800;margin-top:6px">${LIB[mine].icon} ${me+1}. ${esc(LIB[mine].name)} ${(o.botts||[]).includes(me)?'<span class="bn">DARBOĞAZ</span>':''}</div>
+        <div class="small" style="margin-top:4px"><b>Görevin:</b> ${esc(LIB[mine].task)}.</div>
+        <div class="small mut">İş miktarı: <b>${workLabel(mine, o.as[me].m)}</b>${o.as[me].m>1?' (şiddet ×'+o.as[me].m+')':''} · tahmini ≈${fmt1(LIB[mine].op*o.as[me].m)} sn / ürün</div>` : `<div style="margin-top:6px"><b>Gözlemcisin.</b> Boş bir istasyon seçebilir ya da göstergeleri izleyebilirsin.</div>`}
+      <p class="small mut" style="margin-bottom:0">${o.ph==='res' ? '✅ Tur bitti. Sonuçlar projeksiyonda. Bir sonraki tur için bekleyin.' : 'Eğitmen turu başlatınca bu ekran istasyon paneline dönüşecek. Ekranı açık tutun.'}</p></div>`);
+    setHTML($('#plist'), o.keys.map((k,j)=>{
+      const a = o.as[j], taken = a.p && a.p!==G.pid && !a.bot;
+      return `<button data-j="${j}" class="${a.p===G.pid?'me':''}" ${taken?'disabled':''}>${LIB[k].icon} <b>${j+1}. ${esc(LIB[k].name)}</b> ${(o.botts||[]).includes(j)?'<span class="bn">DARBOĞAZ</span>':''}<br><span class="small mut">${a.p===G.pid ? '✔ Sen' : a.p ? esc(a.pn) + (a.bot?' (bağlantı yok)':'') : '🤖 Bot (boş)'}</span></button>`;
+    }).join('') + (me>=0 ? `<button data-j="-1" style="text-align:center">👀 Gözlemci ol</button>` : ''));
+    setHTML($('#pres'), o.r && o.r.length ? `<div class="card"><b>Tur sonuçları</b><table class="tbl small" style="margin-top:6px"><thead><tr><th>Tur</th><th>Sevk</th><th>Ort. WIP</th><th>Son 5 ÇS</th></tr></thead><tbody>${o.r.map(r=>`<tr><td>${esc(r[0])}</td><td>${r[1]}</td><td>${fmt1(r[2])}</td><td>${r[4]} sn</td></tr>`).join('')}</tbody></table></div>` : '');
+    return;
+  }
+  // run / cd
+  const tm = $('#ptm'); if (tm) tm.textContent = o.ph==='run' ? fmtClock(remNow(o)) : '';
+  const ruleTxt = o.tr ? '<b>🧪 DENEME TURU:</b> Hareketi öğren, hızlan. Sonuçlar sayılmaz. Girdi varsa işle.'
+    : o.mode==='push' ? '<b>İTME:</b> Girdi varsa hemen işle — boş durmak yok!'
+    : '<b>KANBAN:</b> Yalnızca boş kartın varsa üret. Kart, sonraki istasyon parçanı çekince geri gelir.';
+  setHTML($('#prule'), `<div class="prule ${o.tr?'trial':o.mode}">${ruleTxt}</div>`);
+  if (me < 0){
+    const k = o.k || {sh:0,wip:0,lt:0,l5:0};
+    setHTML($('#pk'), `<div class="box"><div class="l">Sevk edilen</div><div class="v">${k.sh}</div></div><div class="box"><div class="l">Yarı mamul (WIP)</div><div class="v">${k.wip}</div></div>
+      <div class="box"><div class="l">Ort. çevrim süresi</div><div class="v">${k.lt||'—'} sn</div></div><div class="box"><div class="l">Son 5 çevrim süresi</div><div class="v">${k.l5||'—'} sn</div></div>`);
+    setHTML($('#pst'), o.keys.map((kk,j)=>`<div class="card small"><b>${LIB[kk].icon} ${esc(LIB[kk].name)}</b> — ${o.as[j].bot?'🤖':'👤 '+esc(o.as[j].pn)} · işlenen ${o.as[j].c}${j<o.n-1?` · çıkışta bekleyen <b>${o.b[j]}</b>`:''}</div>`).join(''));
+    return;
+  }
+  const key = o.keys[me], L = LIB[key], a = o.as[me];
+  setHTML($('#pst'), `${L.icon} ${esc(L.name)} ${(o.botts||[]).includes(me)?'<span class="bn">DARBOĞAZ</span>':''}`);
+  const inQ = me===0 ? null : o.b[me-1];
+  setHTML($('#pin'), `<div class="l">GİRİŞ (önceki istasyondan)</div>` + (me===0 ? `<div class="v">∞</div><div class="small mut">Hammadde deposu</div>`
+    : `<div class="v" style="color:${inQ===0?'var(--starve)':'inherit'}">${inQ}</div><div class="mini">${'<i></i>'.repeat(Math.min(inQ,30))}</div>`));
+  if (me === o.n-1){
+    setHTML($('#pout'), `<div class="l">MÜŞTERİYE SEVK</div><div class="v">${a.c}</div><div class="small mut">🚚 sevk edilen</div>`);
+  } else if (o.mode==='kanban'){
+    const used = o.b[me] + (a.j?1:0);
+    setHTML($('#pout'), `<div class="l">ÇIKIŞIM · KANBAN KARTLARI</div><div class="v">${o.b[me]}</div><div class="kc">${Array.from({length:o.K},(_,i)=>`<b class="${i<used?'u':''}"></b>`).join('')}</div><div class="small mut">${o.K-used>0? (o.K-used)+' boş kart' : 'boş kart yok'}</div>`);
+  } else {
+    setHTML($('#pout'), `<div class="l">ÇIKIŞIM (sonraki istasyonu bekleyen)</div><div class="v">${o.b[me]}</div><div class="mini">${'<i></i>'.repeat(Math.min(o.b[me],30))}</div>`);
+  }
+  setHTML($('#pw'), o.w===me ? '<span class="chip wt">👁 Eğitmen izliyor</span>' : '');
+  setHTML($('#pcount'), `İşlediğin: <b>${a.c}</b>${a.oa ? ` · ürün başına ort. <b>${fmt1(a.oa)} sn</b> (tahmini ≈${fmt1(L.op*a.m)})` : ''}`);
+  setHTML($('#pconn'), `<span class="chip ${G.conn.s}">● ${esc(G.conn.m)}</span>`);
+  const pcd = $('#pcd');
+  if (o.ph==='cd'){
+    pcd.style.display='flex';
+    $('#pcdm').innerHTML = o.tr ? `<span class="badge trial">🧪 DENEME TURU</span><br><span style="font-size:.6em">Hareketini öğren — sayılmaz</span>`
+      : `<span class="badge ${o.mode}">${modeLabel(o.mode,o.K)}</span><br><span style="font-size:.6em">${o.mode==='push'?'Girdi varsa hemen işle!':'Sadece boş kartın varsa üret!'}</span>`;
+    $('#pcdn').textContent = Math.max(1, Math.ceil(remNow(o)/1000));
+  } else pcd.style.display='none';
+  updateMain(o, me, a, L);
+}
+function updateMain(o, me, a, L){
+  const main = $('#pmain'); if (!main) return;
+  const job = a.j, key = o.keys[me];
+  // görev durumunu hostla eşitle
+  if (job && job.ph==='m'){
+    if (G.task && G.task.u==='p') G.task.u = job.u;            // iyimser başlangıç onaylandı
+    if (!G.task || G.task.u!==job.u) G.task = newTask(key, job.u, a.m);
+    G.pending = 0;
+  } else if (job && job.ph==='x'){
+    G.task = null; G.pending = 0;
+  } else if (!job){
+    if (G.pending && Date.now()-G.pending > 2500){ G.pending = 0; G.task = null; } // reddedildi
+    if (!G.pending && G.task && G.task.u!=='p') G.task = null;
+  }
+  let k, html, isTask = false;
+  if (o.ph==='cd'){ k='cd'; html = `<div class="waitbox info"><span class="ico">⏱️</span>Hazırlan…<div class="small" style="font-weight:500;margin-top:6px">Görevin: ${esc(L.task)}</div></div>`; }
+  else if ((o.sp||1) > 1){ k='fast'; html = `<div class="waitbox info"><span class="ico">⚡</span>Test modu (x${o.sp})<br><span style="font-weight:500">Eğitmen simülasyonu hızlandırdı; istasyonunu şu an bot çalıştırıyor.</span></div>`; }
+  else if (a.fb){ k='fb'; html = `<div class="waitbox info"><span class="ico">🤖</span>Bu istasyonu şu an eğitmen bota verdi.</div>`; }
+  else if (G.task){
+    k = 't' + G.task.u + (G.task.done?'d':'');
+    if (G.task.done) html = `<div class="machine"><div style="font-size:2em">✅</div><b>Bitti — parça gönderiliyor…</b></div>`;
+    else { isTask = true; html = `<div class="task"><div class="tt">${L.icon} ${esc(L.task)}</div><svg id="tsvg" viewBox="0 0 320 230"></svg><div class="small" id="tstat" style="font-weight:700"></div></div>`; }
+  } else if (job && job.ph==='x'){
+    k = 'x' + job.u;
+    html = `<div class="machine"><div style="font-size:2.2em">✅</div><b>Parça ${me===o.n-1?'müşteriye sevk edildi 🚚':'sonraki istasyona gönderildi ➜'}</b></div>`;
+  } else {
+    const cs = pCanStart(o, me);
+    if (cs==='ready'){ k='ready'; html = `<button class="bigbtn" id="go">İŞLE ▶</button><div class="small mut" style="text-align:center">${me===0?'Hammaddeden yeni bir parça başlat':'Girişten bir parça al ve işle'}</div>`; }
+    else if (cs==='starved'){ k='starved'; html = `<div class="waitbox starved"><span class="ico">⏳</span>Girdi yok<br><span style="font-weight:500">Önceki istasyondan parça gelmesini bekliyorsun.</span></div>`; }
+    else if (cs==='blocked'){ k='blocked'; html = `<div class="waitbox blocked"><span class="ico">🟦</span>Kanban kartın yok<br><span style="font-weight:500">Sonraki istasyon parçanı çekene kadar <b>üretme</b>. Kart geri gelince tuş açılacak.</span></div>`; }
+    else { k='busy'; html = `<div class="waitbox info">…</div>`; }
+  }
+  if (G.mainKey !== k){ G.mainKey = k; main.innerHTML = html; if (isTask){ bindTask(); renderTask(); } }
+}
+function onMainPointer(e){
+  const o = G.S, me = myIdx(); if (!o || me<0 || o.ph!=='run' || (o.sp||1)>1) return;
+  if (e.target.closest('#go')){
+    e.preventDefault();
+    G.pending = Date.now(); G.startSent = Date.now();
+    G.task = newTask(o.keys[me], 'p', o.as[me].m);
+    playerSend({t:'start', st:me});
+    vib(12);
+    updatePlayer();
+  }
+}
+// İzleme için görevin anlık durumu (yalnızca oyun alanı; ekran görüntüsü değil)
+function viewSnap(){
+  const T = G.task; if (!T || T.done) return null;
+  const c = {};
+  for (const k in T){ if (k==='samp' || k==='sent' || k==='u' || k==='done') continue; c[k] = T[k]; }
+  c.slip = T.slip && Date.now()-T.slip < 1300 ? 1 : 0;
+  c.wrongT = T.wrongT && Date.now()-T.wrongT < 700 ? 1 : 0;
+  return JSON.parse(JSON.stringify(c, (k,v)=> typeof v==='number' ? Math.round(v*10)/10 : v));
+}
+function trySendDone(){
+  const t = G.task; if (!t || !t.done || t.u==='p') return;
+  if (Date.now() - t.sent > 1000){ t.sent = Date.now(); playerSend({t:'done', st:myIdx(), u:t.u}); }
+}
+function playerTick(){
+  const o = G.S; if (!o) return;
+  const me = myIdx();
+  if (o.ph==='run' && me>=0){
+    const a = o.as[me];
+    const bar = $('#mbar');
+    if (bar && a.j && a.j.ph==='x'){ const left = a.j.e - hostNowEst(); bar.style.width = Math.max(0, Math.min(100, (1 - left/a.j.d)*100)) + '%'; }
+    if (G.pending && !a.j && Date.now() - G.startSent > 1000 && Date.now() - G.pending < 2400){ G.startSent = Date.now(); playerSend({t:'start', st:me}); }
+    if (G.task && G.task.done) trySendDone();
+    if (o.w===me && Date.now() - (G.lastView||0) >= 140){ G.lastView = Date.now(); playerSend({t:'view', st:me, T:viewSnap(), f:G.finger||null}); }
+    const tm = $('#ptm'); if (tm) tm.textContent = fmtClock(remNow(o));
+    if (G.task && !G.task.done && ((G.task.slip && Date.now() - G.task.slip < 1500) || (G.task.wrongT && Date.now() - G.task.wrongT < 900))) renderTask();
+  }
+  if (o.ph==='cd' && me>=0){ const n = $('#pcdn'); if (n) n.textContent = Math.max(1, Math.ceil(remNow(o)/1000)); }
+}
+
+/* ---------------- İstasyon hareketleri (telefon) ---------------- */
+// Her görev 320×230'luk bir SVG üzerinde çalışır. Darboğaz istasyonunda görev ×N aşamadan oluşur.
+// Tüm aşamalar bitince done=true olur ve hosta "done" gönderilir. Makine süresi yoktur.
+function spreadPts(n, x0,x1,y0,y1, minD){
+  const pts = [];
+  for (let t=0; pts.length<n && t<800; t++){ const x = rnd(x0,x1), y = rnd(y0,y1); if (pts.every(p=>Math.hypot(p.x-x,p.y-y) > minD)) pts.push({x,y}); }
+  if (pts.length<n) return Array.from({length:n}, (_,i)=>({x:x0+(i+.5)*(x1-x0)/n, y:rnd(y0,y1)}));
+  return pts;
+}
+function sampleLine(pts, step){
+  const out = [];
+  for (let i=0;i<pts.length-1;i++){ const A=pts[i], B=pts[i+1], n=Math.max(1, Math.round(Math.hypot(B.x-A.x,B.y-A.y)/step)); for (let k=0;k<n;k++) out.push({x:A.x+(B.x-A.x)*k/n, y:A.y+(B.y-A.y)*k/n}); }
+  out.push(pts[pts.length-1]); return out;
+}
+function projSeg(p,a,b){ const dx=b.x-a.x, dy=b.y-a.y, L2=dx*dx+dy*dy; let t=((p.x-a.x)*dx+(p.y-a.y)*dy)/L2; t=Math.max(0,Math.min(1,t)); return {t, d:Math.hypot(p.x-(a.x+dx*t), p.y-(a.y+dy*t))}; }
+function seamPath(shape){
+  if (shape==='L'){ const x0=rnd(48,90), y0=rnd(38,62), y1=rnd(165,188), x1=rnd(235,285); return [{x:x0,y:y0},{x:x0,y:y1},{x:x1,y:y1}]; }
+  if (shape==='wave'){ const pts=[], ph=rnd(0,6.28), yc=rnd(100,130); for (let k=0;k<=24;k++) pts.push({x:34+k*(252/24), y:yc+44*Math.sin(ph+k*0.55)}); return pts; }
+  const n=5, pts=[]; for (let i=0;i<=n;i++) pts.push({x:34+i*(252/n), y: i%2 ? rnd(135,180) : rnd(45,90)}); return pts;
+}
+const SEAMS = ['zig','L','wave'], SEAM_TR = {zig:'zikzak', L:'L', wave:'dalga'};
+function newTask(key, u, mult){
+  const T = {u, key, type:LIB[key].type, done:false, sent:0, wrong:0, stage:0, stages: (key==='kaynak' ? 2 : 1) * Math.max(1, mult||1)};
+  initStage(T); return T;
+}
+function initStage(T){
+  T.active = false; T.slip = 0; T.wrongAt = -1; T.wrongT = 0;
+  if (T.type==='cut'){ T.a={x:34, y:rnd(55,175)}; T.b={x:286, y:rnd(55,175)}; T.prog=0; }
+  if (T.type==='hold'){ // 5 delik: üstte 3, altta 2; sıra karışık
+    const pts = [[70,66],[160,66],[250,66],[115,162],[205,162]].map(([x,y])=>({x:x+rnd(-14,14), y:y+rnd(-10,10)}));
+    for (let i=pts.length-1;i>0;i--){ const r = Math.floor(Math.random()*(i+1)); [pts[i],pts[r]] = [pts[r],pts[i]]; }
+    T.pts = pts; T.cur=0; T.hs=0; T.fill=0; }
+  if (T.type==='trace'){ T.shape = SEAMS[T.stage % 3]; T.path = seamPath(T.shape); T.samp = sampleLine(T.path,4); T.i=0; }
+  if (T.type==='drag'){ T.holes = spreadPts(3, 55,265, 45,125, 80).map(p=>({x:p.x, y:p.y, f:false})); T.sc=[70,160,250].map(x=>({x, y:198, hx:x, hy:198, h:-1, tight:false})); T.dr=-1; }
+  if (T.type==='inspect'){ T.allGood = Math.random() < 0.25; T.bad = T.allGood ? -1 : Math.floor(Math.random()*4); T.kind = ['eksik','catlak','fazla'][Math.floor(Math.random()*3)]; T.found=false; }
+  if (T.type==='pack'){ T.step='drag'; T.px=T.hx=72; T.py=T.hy=140; T.dr=false; T.a={x:178,y:98}; T.b={x:306,y:98}; T.prog=0; T.labeled=false; }
+}
+function swipeDown(T,p){ const r = projSeg(p,T.a,T.b); if (r.d < 36 && r.t <= T.prog + 0.12) T.active = true; }
+function swipeMove(T,p){
+  if (!T.active) return;
+  const r = projSeg(p,T.a,T.b);
+  if (r.d > 36){ T.active = false; T.slip = Date.now(); vib(40); return; }
+  T.prog = Math.max(T.prog, Math.min(r.t, T.prog + 0.15));
+}
+const LABEL_BOX = {x0:206, x1:278, y0:128, y1:178};
+const INSPECT_CELLS = [[12,6],[164,6],[12,100],[164,100]], OKBTN = {x0:70, x1:250, y0:197, y1:226};
+function taskDown(T,p){
+  if (T.type==='cut') swipeDown(T,p);
+  else if (T.type==='hold'){ const h = T.pts[T.cur]; if (h && Math.hypot(p.x-h.x,p.y-h.y) < 42){ T.hs = performance.now(); T.fill = 0; requestAnimationFrame(holdLoop); } }
+  else if (T.type==='trace'){ const s = T.samp[T.i]; if (Math.hypot(p.x-s.x,p.y-s.y) < 38) T.active = true; }
+  else if (T.type==='drag'){
+    const ti = T.sc.findIndex(s=>s.h>=0 && !s.tight && Math.hypot(p.x-s.x,p.y-s.y) < 30);   // takılı vidaya dokun → sık
+    if (ti>=0){ T.sc[ti].tight = true; vib(15); return; }
+    T.dr = T.sc.findIndex(s=>s.h<0 && Math.hypot(p.x-s.x,p.y-s.y) < 32);
+  }
+  else if (T.type==='inspect'){
+    if (p.y > OKBTN.y0 - 4){
+      if (p.x > OKBTN.x0 - 10 && p.x < OKBTN.x1 + 10){ if (T.allGood) T.found = true; else { T.wrong++; T.wrongAt = 4; T.wrongT = Date.now(); vib(60); } }
+      return;
+    }
+    const idx = (p.y < 97 ? 0 : 2) + (p.x < 160 ? 0 : 1);
+    if (idx === T.bad) T.found = true; else { T.wrong++; T.wrongAt = idx; T.wrongT = Date.now(); vib(60); }
+  }
+  else if (T.type==='pack'){
+    if (T.step==='drag'){ if (Math.abs(p.x-T.px)<40 && Math.abs(p.y-T.py)<40) T.dr = true; }
+    else if (T.step==='tape') swipeDown(T,p);
+    else if (T.step==='label'){ if (p.x>LABEL_BOX.x0-8 && p.x<LABEL_BOX.x1+8 && p.y>LABEL_BOX.y0-8 && p.y<LABEL_BOX.y1+8){ T.labeled = true; vib(15); } }
+  }
+}
+function taskMove(T,p){
+  if (T.type==='cut') swipeMove(T,p);
+  else if (T.type==='hold'){ const h = T.pts[T.cur]; if (T.hs && h && Math.hypot(p.x-h.x,p.y-h.y) > 50){ T.hs = 0; T.fill = 0; } }
+  else if (T.type==='trace'){
+    if (!T.active) return;
+    let best=-1, bd=1e9;
+    for (let k=T.i; k<Math.min(T.samp.length, T.i+22); k++){ const s=T.samp[k], d=Math.hypot(p.x-s.x,p.y-s.y); if (d<bd){ bd=d; best=k; } }
+    if (bd <= 30) T.i = Math.max(T.i, best);
+    else if (bd > 42){ T.active = false; T.slip = Date.now(); vib(40); }
+  }
+  else if (T.type==='drag'){ if (T.dr>=0){ T.sc[T.dr].x = p.x; T.sc[T.dr].y = p.y; } }
+  else if (T.type==='pack'){
+    if (T.step==='drag'){ if (T.dr){ T.px = p.x; T.py = p.y; } }
+    else if (T.step==='tape'){ swipeMove(T,p); if (T.prog >= 0.97){ T.step='label'; T.active=false; vib(15); } }
+  }
+}
+function taskUp(T,p){
+  if (T.type==='cut' || T.type==='trace') T.active = false;
+  else if (T.type==='hold'){ if (T.hs){ T.hs = 0; T.fill = 0; } }
+  else if (T.type==='drag' && T.dr>=0){
+    const s = T.sc[T.dr];
+    const hi = T.holes.findIndex(h=>!h.f && Math.hypot(h.x-s.x,h.y-s.y) < 34);
+    if (hi>=0){ s.x = T.holes[hi].x; s.y = T.holes[hi].y; s.h = hi; T.holes[hi].f = true; vib(15); }
+    else { s.x = s.hx; s.y = s.hy; }
+    T.dr = -1;
+  }
+  else if (T.type==='pack'){
+    if (T.step==='tape') T.active = false;
+    if (T.step==='drag' && T.dr){
+      T.dr = false;
+      if (T.px>178 && T.px<306 && T.py>100 && T.py<212){ T.step='tape'; T.px=242; T.py=158; vib(15); }
+      else { T.px=T.hx; T.py=T.hy; }
+    }
+  }
+}
+function holdLoop(){
+  const T = G.task; if (!T || T.type!=='hold' || !T.hs || T.done) return;
+  T.fill = Math.min(1, (performance.now()-T.hs)/600);
+  if (T.fill >= 1){ T.cur++; T.hs = 0; T.fill = 0; vib(15); taskChanged(); return; }
+  renderTask(); requestAnimationFrame(holdLoop);
+}
+function stageDone(T){
+  switch (T.type){
+    case 'cut': return T.prog >= 0.97;
+    case 'hold': return T.cur >= T.pts.length;
+    case 'trace': return T.i >= T.samp.length - 3;
+    case 'drag': return T.sc.every(s=>s.h>=0 && s.tight);
+    case 'inspect': return !!T.found;
+    case 'pack': return T.step==='label' && T.labeled;
+  }
+  return false;
+}
+function taskChanged(){
+  const T = G.task; if (!T) return;
+  if (!T.done && stageDone(T)){
+    if (T.stage < T.stages - 1){ T.stage++; initStage(T); vib(20); renderTask(); return; }   // sıradaki aşama
+    T.done = true; vib(25); trySendDone(); G.mainKey=''; updatePlayer(); return;
+  }
+  renderTask();
+}
+function bindTask(){
+  const svg = $('#tsvg'); if (!svg) return;
+  const pt = e => { const m = svg.getScreenCTM(); if (!m) return {x:-999,y:-999}; const q = new DOMPoint(e.clientX, e.clientY).matrixTransform(m.inverse()); return {x:q.x, y:q.y}; };
+  svg.addEventListener('pointerdown', e=>{ const T = G.task; if (!T || T.done) return; e.preventDefault(); try { svg.setPointerCapture(e.pointerId); } catch(_){} const q = pt(e); G.finger = {x:Math.round(q.x), y:Math.round(q.y), d:1}; taskDown(T, q); taskChanged(); });
+  svg.addEventListener('pointermove', e=>{ const T = G.task; if (!T || T.done) return; if (e.pointerType==='mouse' && e.buttons===0) return; const q = pt(e); G.finger = {x:Math.round(q.x), y:Math.round(q.y), d:1}; taskMove(T, q); taskChanged(); });
+  const up = e=>{ const T = G.task; if (!T || T.done) return; const q = pt(e); G.finger = {x:Math.round(q.x), y:Math.round(q.y), d:0}; taskUp(T, q); taskChanged(); };
+  svg.addEventListener('pointerup', up); svg.addEventListener('pointercancel', up);
+}
+const PLATE = `<rect x="14" y="20" width="292" height="190" rx="14" fill="#cfd6de" stroke="#8a96a3" stroke-width="3"/>`;
+const startMark = (p, show) => show ? `<circle cx="${p.x}" cy="${p.y}" r="18" fill="#ffd24d" stroke="#1b2130" stroke-width="3" class="pulse"/><text x="${p.x}" y="${p.y-26}" text-anchor="middle" font-size="13" font-weight="900" fill="#1b2130">BAŞLA</text>` : '';
+const pts2 = arr => arr.map(p=>p.x.toFixed(1)+','+p.y.toFixed(1)).join(' ');
+function taskSVG(T){
+  const slip = T.slip && Date.now()-T.slip < 1300 ? `<text x="160" y="226" text-anchor="middle" font-size="13" font-weight="800" fill="#d64545">Çizgiden çıktın! Kaldığın yerden devam et.</text>` : '';
+  if (T.type==='cut'){
+    const P = {x:T.a.x+(T.b.x-T.a.x)*T.prog, y:T.a.y+(T.b.y-T.a.y)*T.prog};
+    return PLATE + `<line x1="${T.a.x}" y1="${T.a.y}" x2="${T.b.x}" y2="${T.b.y}" stroke="#5b6573" stroke-width="4" stroke-dasharray="10 8"/>
+      <line x1="${T.a.x}" y1="${T.a.y}" x2="${P.x}" y2="${P.y}" stroke="#d64545" stroke-width="8" stroke-linecap="round"/>
+      <circle cx="${T.b.x}" cy="${T.b.y}" r="8" fill="#1b2130"/>` + startMark(T.a, T.prog<0.02 && !T.active) +
+      `<text x="${P.x}" y="${P.y+11}" text-anchor="middle" font-size="30">✂️</text>` + slip;
+  }
+  if (T.type==='hold'){
+    return PLATE + T.pts.map((h,i)=>{
+      const num = T.stage*T.pts.length + i + 1;
+      if (i < T.cur) return `<circle cx="${h.x}" cy="${h.y}" r="22" fill="#1b2130"/><text x="${h.x}" y="${h.y+7}" text-anchor="middle" font-size="20" fill="#fff">✓</text>`;
+      if (i === T.cur) return `<circle cx="${h.x}" cy="${h.y}" r="27" fill="#fff" stroke="#8a96a3" stroke-width="3" class="${T.hs?'':'pulse'}"/>
+        <circle cx="${h.x}" cy="${h.y}" r="27" fill="none" stroke="#2e9e5b" stroke-width="9" stroke-dasharray="${(T.fill*170).toFixed(1)} 170" transform="rotate(-90 ${h.x} ${h.y})"/>
+        <text x="${h.x}" y="${h.y+8}" text-anchor="middle" font-size="20" font-weight="900" fill="#1b2130">${num}</text>`;
+      return `<circle cx="${h.x}" cy="${h.y}" r="22" fill="#fff" stroke="#9aa3ad" stroke-width="3" stroke-dasharray="5 5"/><text x="${h.x}" y="${h.y+7}" text-anchor="middle" font-size="17" font-weight="800" fill="#9aa3ad">${num}</text>`;
+    }).join('');
+  }
+  if (T.type==='trace'){
+    const P = T.samp[T.i], end = T.path[T.path.length-1];
+    return PLATE + `<polyline points="${pts2(T.path)}" fill="none" stroke="#5b6573" stroke-width="5" stroke-dasharray="3 8" stroke-linecap="round" stroke-linejoin="round"/>
+      <polyline points="${pts2(T.samp.slice(0,T.i+1))}" fill="none" stroke="#ffb35c" stroke-width="14" stroke-linecap="round" stroke-linejoin="round" opacity=".55"/>
+      <polyline points="${pts2(T.samp.slice(0,T.i+1))}" fill="none" stroke="#e8590c" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="${end.x}" cy="${end.y}" r="8" fill="#1b2130"/>` + startMark(T.path[0], T.i===0 && !T.active) +
+      `<text x="${P.x}" y="${P.y+10}" text-anchor="middle" font-size="28">🔥</text>` + slip;
+  }
+  if (T.type==='drag'){
+    return `<rect x="14" y="14" width="292" height="148" rx="14" fill="#cfd6de" stroke="#8a96a3" stroke-width="3"/>
+      <rect x="14" y="170" width="292" height="56" rx="10" fill="#e9ecef" stroke="#c7cdd4" stroke-width="2"/><text x="22" y="184" font-size="11" fill="#667085" font-weight="700">VİDA KUTUSU</text>` +
+      T.holes.map(h=>`<circle cx="${h.x}" cy="${h.y}" r="18" fill="${h.f?'#1b2130':'#5b6573'}" stroke="#2c333d" stroke-width="3"/>${h.f?'':`<circle cx="${h.x}" cy="${h.y}" r="26" fill="none" stroke="#ffd24d" stroke-width="3" stroke-dasharray="4 5"/>`}`).join('') +
+      T.sc.map(s=>{
+        const loose = s.h>=0 && !s.tight;
+        return `<g><circle cx="${s.x}" cy="${s.y}" r="16" fill="${s.tight?'#2e9e5b':'#c3cad2'}" stroke="#3d4652" stroke-width="3" class="${loose?'pulse':''}"/>
+          <path d="M${s.x-8} ${s.y}H${s.x+8}M${s.x} ${s.y-8}V${s.y+8}" stroke="${s.tight?'#fff':'#3d4652'}" stroke-width="3" transform="rotate(${s.tight?45:0} ${s.x} ${s.y})"/>
+          ${loose?`<text x="${s.x}" y="${s.y-22}" text-anchor="middle" font-size="12" font-weight="900" fill="#1b2130">↻ SIK</text>`:''}</g>`;
+      }).join('');
+  }
+  if (T.type==='inspect'){
+    const cells = INSPECT_CELLS.map(([x,y],i)=>{
+      const w=144, h=88, holes=[[x+22,y+18],[x+w-22,y+18],[x+22,y+h-18],[x+w-22,y+h-18]];
+      let extra = '', hs = holes;
+      if (i===T.bad){
+        if (T.kind==='eksik') hs = holes.filter((_,k)=>k!==((T.bad+T.stage+1)%4));
+        if (T.kind==='fazla') extra = `<circle cx="${x+w/2+10}" cy="${y+h/2-4}" r="7" fill="#3d4652"/>`;
+        if (T.kind==='catlak') extra = `<path d="M${x+40} ${y+26} l12 10 l-6 12 l14 9 l-5 12" fill="none" stroke="#2c2424" stroke-width="2.4"/>`;
+      }
+      const wrong = i===T.wrongAt && Date.now()-T.wrongT < 700;
+      return `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="10" fill="${wrong?'#fde2e2':'#cfd6de'}" stroke="${wrong?'#d64545':'#8a96a3'}" stroke-width="3"/>` +
+        hs.map(([cx,cy])=>`<circle cx="${cx}" cy="${cy}" r="7" fill="#3d4652"/>`).join('') + extra +
+        (wrong ? `<text x="${x+w/2}" y="${y+h/2+10}" text-anchor="middle" font-size="30" fill="#d64545">✗</text>` : '');
+    }).join('');
+    const bw = T.wrongAt===4 && Date.now()-T.wrongT < 700;
+    return cells + `<rect x="${OKBTN.x0}" y="${OKBTN.y0}" width="${OKBTN.x1-OKBTN.x0}" height="${OKBTN.y1-OKBTN.y0}" rx="13" fill="${bw?'#fde2e2':'#e6f4ec'}" stroke="${bw?'#d64545':'#2e9e5b'}" stroke-width="2.5"/>
+      <text x="160" y="${OKBTN.y0+19}" text-anchor="middle" font-size="14" font-weight="900" fill="${bw?'#d64545':'#11643f'}">${bw?'✗ Kusurlu parça var!':'Hepsi sağlam ✓'}</text>`;
+  }
+  if (T.type==='pack'){
+    const P = {x:T.a.x+(T.b.x-T.a.x)*T.prog, y:T.a.y};
+    const box = `<rect x="178" y="100" width="128" height="112" fill="#c89a5b" stroke="#8d6a33" stroke-width="3"/><text x="242" y="226" text-anchor="middle" font-size="11" fill="#667085" font-weight="700">KOLİ</text>`;
+    const product = `<g><rect x="${T.px-34}" y="${T.py-34}" width="68" height="68" rx="6" fill="#eef1f4" stroke="#5b6573" stroke-width="3"/><circle cx="${T.px}" cy="${T.py+4}" r="16" fill="#cfd6de" stroke="#5b6573" stroke-width="2"/><rect x="${T.px-26}" y="${T.py-28}" width="52" height="8" rx="2" fill="#9aa3ad"/></g>`;
+    if (T.step==='drag') return box + `<path d="M178 100 L160 78 M306 100 L322 78" stroke="#8d6a33" stroke-width="3"/>` + product +
+      `<text x="72" y="196" text-anchor="middle" font-size="12" font-weight="800" fill="#1b2130">ÜRÜN</text><path d="M118 140 h44 m-10 -8 l10 8 l-10 8" stroke="#1b2130" stroke-width="3" fill="none"/>`;
+    if (T.step==='tape') return box + `<path d="M178 100 L160 78 M306 100 L322 78" stroke="#8d6a33" stroke-width="3"/>` + product +
+      `<line x1="${T.a.x}" y1="${T.a.y}" x2="${T.b.x}" y2="${T.b.y}" stroke="#8d6a33" stroke-width="3" stroke-dasharray="8 6"/>
+      <line x1="${T.a.x}" y1="${T.a.y}" x2="${P.x}" y2="${P.y}" stroke="#e3c27a" stroke-width="14" stroke-linecap="round" opacity=".9"/>` + startMark(T.a, T.prog<0.02 && !T.active) +
+      `<circle cx="${P.x}" cy="${P.y}" r="11" fill="#fff" stroke="#8d6a33" stroke-width="4"/>` + slip;
+    // etiket
+    const L = LABEL_BOX;
+    return box + `<line x1="178" y1="100" x2="306" y2="100" stroke="#e3c27a" stroke-width="14"/>` +
+      (T.labeled ? `<rect x="${L.x0}" y="${L.y0}" width="${L.x1-L.x0}" height="${L.y1-L.y0}" fill="#fff" stroke="#3d4652" stroke-width="2"/>` + Array.from({length:12},(_,k)=>`<rect x="${L.x0+8+k*5}" y="${L.y0+8}" width="${k%3?2:3}" height="26" fill="#1b2130"/>`).join('')
+        : `<rect x="${L.x0}" y="${L.y0}" width="${L.x1-L.x0}" height="${L.y1-L.y0}" fill="#fff8e6" stroke="#1b2130" stroke-width="2.5" stroke-dasharray="6 5" class="pulse"/><text x="${(L.x0+L.x1)/2}" y="${L.y0+30}" text-anchor="middle" font-size="12" font-weight="900" fill="#1b2130">ETİKET</text>`);
+  }
+  return '';
+}
+function taskStatus(T){
+  const many = T.stages > 1;
+  switch (T.type){
+    case 'cut': return `✂️ ${many ? 'Kesim ' + (T.stage+1) + '/' + T.stages + ' · ' : ''}%${Math.round(T.prog*100)}`;
+    case 'hold': { const n = T.pts.length; return `🔩 Delik ${Math.min(T.stage*n + T.cur + 1, T.stages*n)}/${T.stages*n} — basılı tut`; }
+    case 'trace': return `🔥 ${many ? 'Dikiş ' + (T.stage+1) + '/' + T.stages + ' (' + SEAM_TR[T.shape] + ') · ' : ''}%${Math.round(T.i/(T.samp.length-1)*100)}`;
+    case 'drag': { const placed = T.sc.filter(s=>s.h>=0).length, tight = T.sc.filter(s=>s.tight).length;
+      return `🔧 ${many ? 'Set ' + (T.stage+1) + '/' + T.stages + ' · ' : ''}takılan ${placed}/3 · sıkılan ${tight}/3`; }
+    case 'inspect': return `🔍 ${many ? 'Grup ' + (T.stage+1) + '/' + T.stages + ' · ' : ''}Kusurluya dokun ya da "Hepsi sağlam"${T.wrong ? ' · yanlış: ' + T.wrong : ''}`;
+    case 'pack': return `📦 ${many ? 'Ürün ' + (T.stage+1) + '/' + T.stages + ' · ' : ''}` + (T.step==='drag' ? '1) Koliye sürükle' : T.step==='tape' ? `2) Bandı çek %${Math.round(T.prog*100)}` : '3) Etikete dokun');
+  }
+  return '';
+}
+function renderTask(){
+  const T = G.task, svg = $('#tsvg'); if (!T || !svg) return;
+  svg.innerHTML = taskSVG(T);
+  setHTML($('#tstat'), taskStatus(T));
+}
+
+/* ---------------- Başlat ---------------- */
+if (P.get('oda')) startPlayer(P.get('oda').toUpperCase().trim(), P.get('b') || 'A');
+else if (P.get('rol') === 'egitmen') startHost(P.get('b') || 'A');
+else renderLanding();
+</script>
+</body>
+</html>
