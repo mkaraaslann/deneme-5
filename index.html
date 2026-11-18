@@ -453,7 +453,7 @@ function startHost(b){
   try { sessionStorage.setItem('kl_host_code', code); } catch(e){}
   H = {
     b, code, players:{}, assign:Array(7).fill(null), forceBot:Array(7).fill(false),
-    settings:{active:['kesim','delme','kaynak','montaj','kalite','paket'], mult:{kesim:1, delme:1, kaynak:2, boya:1, montaj:1, kalite:1, paket:1}, round:240, K:1, mode:'push'},
+    settings:{active:['kesim','delme','kaynak','montaj','kalite','paket'], mult:{kesim:1, delme:1, kaynak:2, boya:1, montaj:1, kalite:1, paket:1}, round:240, K:4, mode:'push'},
     phase:'lobby', sim:null, rounds:[], cdEnd:0, conn:{s:'wait',m:'…'}, lastPub:0, dirty:true, view:'',
     speed:1, sBase:Date.now(), rBase:Date.now(), watch:-1, wv:null, botViz:{}
   };
@@ -847,7 +847,7 @@ function hostBuildLobby(){
       </div>
       <div>
         <div class="card">
-          <h3>Oyunun kuralları (öğrencilere okuyun)</h3>
+          <h3>Simülasyon kuralları</h3>
           <ol class="rules">
             <li>Her telefon hattaki bir istasyondur. <b>İŞLE</b> tuşuna basınca önceki istasyondan bir parça alırsınız.</li>
             <li>Ekranda istasyonunuza özgü işlemi yapın: <b>Kesim</b> çizgi boyunca kaydır · <b>Delme</b> basılı tut · <b>Kaynak</b> dikişi takip et · <b>Boya</b> parmağınla boya · <b>Montaj</b> vidaları sürükle · <b>Kalite</b> kusurluyu bul · <b>Paketleme</b> koliye koy ve bantla.</li>
@@ -862,7 +862,7 @@ function hostBuildLobby(){
         <div class="card" style="margin-top:12px">
           <h3>Başlat</h3>${settingsHTML()}${trialInfo()}
           <p class="row" style="margin-top:14px"><button id="trialBtn" class="ghost">🧪 1 dk deneme turu (sonuçlara sayılmaz)</button><button id="startBtn" class="green" style="font-size:1.15em">${startLabel()}</button></p>
-          <p class="small mut">Önerilen akış: 🧪 Deneme turu → Tur 1 İtme → Tur 2 Kanban (K=1). Herkes iki turda da aynı istasyonda kalır.</p>
+          <p class="small mut">Önerilen akış: 🧪 Deneme turu → Tur 1 İtme → Tur 2 Kanban (K=4) → Tur 3 Kanban (K=1). Herkes bütün turlarda aynı istasyonda kalır.</p>
         </div>
       </div>
     </div></div>`;
